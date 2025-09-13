@@ -459,7 +459,7 @@ const Pedidos = () => {
 
       const { error: orderError } = await supabase
         .from("orders")
-        .update({ status: "pago" })
+        .update({ status: "pago", payment_method: paymentMethod })
         .eq("id", payingOrder.id);
 
       if (orderError) throw orderError;
@@ -798,10 +798,21 @@ const Pedidos = () => {
                       {new Date(order.created_at).toLocaleString()}
                     </CardDescription>
                   </div>
-                  <Badge className={`px-2 py-1 ${statusClasses[order.status] || 'bg-gray-500 text-white'}`}>
-                    {order.status}
-                    <StatusIcon className="w-4 h-4 mr-2" />
-                    {statusOptions.find((s) => s.value === order.status)?.label}
+                  <Badge className={`px-2 py-1 ${order.status === 'pago' ? 'bg-green-500 text-white' : (statusClasses[order.status] || 'bg-gray-500 text-white')}`}>
+                    {order.status === 'pago' ? (
+                      <>
+                        <CreditCard className="w-4 h-4 mr-2" />
+                        {order.payment_method === 'dinheiro' ? 'Dinheiro' :
+                         order.payment_method === 'cartao_credito' ? 'Cartão Crédito' :
+                         order.payment_method === 'cartao_debito' ? 'Cartão Débito' :
+                         order.payment_method === 'pix' ? 'PIX' : 'Pago'}
+                      </>
+                    ) : (
+                      <>
+                        <StatusIcon className="w-4 h-4 mr-2" />
+                        {statusOptions.find((s) => s.value === order.status)?.label}
+                      </>
+                    )}
                   </Badge>
                 </CardHeader>
 

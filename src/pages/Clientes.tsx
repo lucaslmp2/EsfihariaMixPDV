@@ -326,7 +326,7 @@ const Clientes = () => {
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground flex items-center gap-1">
                         <Mail className="w-4 h-4" />
-                        E-mail
+                        Email
                       </span>
                       <span className="text-foreground text-sm truncate">
                         {customer.email}

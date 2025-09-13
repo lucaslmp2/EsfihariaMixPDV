@@ -51,6 +51,11 @@ const Produtos = () => {
     active: true,
   });
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<any>(null);
+  const [categoryFormData, setCategoryFormData] = useState({
+    name: "",
+  });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -108,7 +113,7 @@ const Produtos = () => {
         ...formData,
         price: parseFloat(formData.price),
         cost_price: formData.cost_price ? parseFloat(formData.cost_price) : null,
-        category_id: formData.category_id ? parseInt(formData.category_id) : null,
+        category_id: formData.category_id || null,
         stock: formData.stock ? parseFloat(formData.stock) : 0,
       };
 
@@ -222,6 +227,89 @@ const Produtos = () => {
       active: true,
     });
     setEditingProduct(null);
+  };
+
+  const handleCategorySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      let error;
+      if (editingCategory) {
+        const { error: updateError } = await supabase
+          .from('categories')
+          .update(categoryFormData)
+          .eq('id', editingCategory.id);
+        error = updateError;
+      } else {
+        const { error: insertError } = await supabase
+          .from('categories')
+          .insert([categoryFormData]);
+        error = insertError;
+      }
+
+      if (error) throw error;
+
+      toast({
+        title: editingCategory ? "Categoria atualizada" : "Categoria criada",
+        description: `${categoryFormData.name} foi ${editingCategory ? "atualizada" : "criada"} com sucesso`,
+      });
+
+      setCategoryDialogOpen(false);
+      resetCategoryForm();
+      loadCategories();
+      loadProducts(); // Reload products to get updated category names
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Erro ao salvar categoria",
+        description: error.message,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditCategory = (category: any) => {
+    setEditingCategory(category);
+    setCategoryFormData({
+      name: category.name,
+    });
+    setCategoryDialogOpen(true);
+  };
+
+  const handleDeleteCategory = async (id: number) => {
+    if (!confirm("Tem certeza que deseja excluir esta categoria? Produtos associados podem ficar sem categoria.")) return;
+
+    try {
+      const { error } = await supabase
+        .from('categories')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Categoria excluída",
+        description: "Categoria removida com sucesso",
+      });
+
+      loadCategories();
+      loadProducts();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Erro ao excluir categoria",
+        description: error.message,
+      });
+    }
+  };
+
+  const resetCategoryForm = () => {
+    setCategoryFormData({
+      name: "",
+    });
+    setEditingCategory(null);
   };
 
   const filteredProducts = products.filter(product => {
@@ -410,97 +498,99 @@ const Produtos = () => {
 
       {/* Products Grid */}
       {filteredProducts.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredProducts.map((product) => (
-            <Card key={product.id} className="pdv-card group">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-lg text-foreground truncate">
-                      {product.name}
-                    </CardTitle>
-                    <CardDescription className="flex items-center gap-2 mt-1">
-                      {product.categories?.name && (
-                        <Badge variant="secondary" className="text-xs">
-                          {product.categories.name}
+        <div className="max-h-[400px] overflow-y-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {filteredProducts.map((product) => (
+              <Card key={product.id} className="pdv-card group">
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="text-lg text-foreground truncate">
+                        {product.name}
+                      </CardTitle>
+                      <CardDescription className="flex items-center gap-2 mt-1">
+                        {product.categories?.name && (
+                          <Badge variant="secondary" className="text-xs">
+                            {product.categories.name}
+                          </Badge>
+                        )}
+                        <Badge
+                          variant={product.active ? "secondary" : "outline"}
+                          className={`text-xs ${product.active ? "text-green-700 bg-green-100" : ""}`}
+                        >
+                          {product.active ? "Ativo" : "Inativo"}
                         </Badge>
+                      </CardDescription>
+                    </div>
+
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => toggleActive(product.id, product.active)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      {product.active ? (
+                        <EyeOff className="w-4 h-4" />
+                      ) : (
+                        <Eye className="w-4 h-4" />
                       )}
-                      <Badge 
-                        variant={product.active ? "secondary" : "outline"}
-                        className={`text-xs ${product.active ? "text-green-700 bg-green-100" : ""}`}
-                      >
-                        {product.active ? "Ativo" : "Inativo"}
-                      </Badge>
-                    </CardDescription>
+                    </Button>
                   </div>
-                  
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => toggleActive(product.id, product.active)}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    {product.active ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                  </Button>
-                </div>
-              </CardHeader>
-              
-              <CardContent className="pt-0">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Preço</span>
-                    <span className="font-semibold text-foreground flex items-center gap-1">
-                      <DollarSign className="w-4 h-4" />
-                      R$ {product.price.toFixed(2)}
-                    </span>
-                  </div>
-                  
-                  {product.stock !== null && (
+                </CardHeader>
+
+                <CardContent className="pt-0">
+                  <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Estoque</span>
-                      <span className="flex items-center gap-1 text-foreground">
-                        <Package className="w-4 h-4" />
-                        {product.stock}
+                      <span className="text-sm text-muted-foreground">Preço</span>
+                      <span className="font-semibold text-foreground flex items-center gap-1">
+                        <DollarSign className="w-4 h-4" />
+                        R$ {product.price.toFixed(2)}
                       </span>
                     </div>
-                  )}
-                  
-                  {product.sku && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">SKU</span>
-                      <code className="text-xs bg-muted px-2 py-1 rounded">
-                        {product.sku}
-                      </code>
-                    </div>
-                  )}
-                </div>
-                
-                <div className="flex gap-2 mt-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleEdit(product)}
-                    className="flex-1"
-                  >
-                    <Edit className="w-4 h-4 mr-1" />
-                    Editar
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDelete(product.id)}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+
+                    {product.stock !== null && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Estoque</span>
+                        <span className="flex items-center gap-1 text-foreground">
+                          <Package className="w-4 h-4" />
+                          {product.stock}
+                        </span>
+                      </div>
+                    )}
+
+                    {product.sku && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">SKU</span>
+                        <code className="text-xs bg-muted px-2 py-1 rounded">
+                          {product.sku}
+                        </code>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2 mt-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEdit(product)}
+                      className="flex-1"
+                    >
+                      <Edit className="w-4 h-4 mr-1" />
+                      Editar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDelete(product.id)}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       ) : (
         <div className="text-center py-12">
@@ -521,6 +611,119 @@ const Produtos = () => {
           )}
         </div>
       )}
+
+      {/* Categories Management Section */}
+      <div className="border-t pt-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-xl font-semibold text-foreground">Gerenciar Categorias</h2>
+            <p className="text-sm text-muted-foreground">
+              Crie e organize as categorias dos seus produtos
+            </p>
+          </div>
+
+          <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => resetCategoryForm()} variant="outline">
+                <Plus className="w-4 h-4 mr-2" />
+                Nova Categoria
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[400px]">
+              <DialogHeader>
+                <DialogTitle>
+                  {editingCategory ? "Editar Categoria" : "Nova Categoria"}
+                </DialogTitle>
+                <DialogDescription>
+                  {editingCategory ? "Atualize o nome da categoria" : "Crie uma nova categoria para organizar seus produtos"}
+                </DialogDescription>
+              </DialogHeader>
+
+              <form onSubmit={handleCategorySubmit} className="space-y-4">
+                <div>
+                  <Label htmlFor="category_name">Nome da Categoria *</Label>
+                  <Input
+                    id="category_name"
+                    value={categoryFormData.name}
+                    onChange={(e) => setCategoryFormData({...categoryFormData, name: e.target.value})}
+                    required
+                    className="pdv-input"
+                    placeholder="Ex: Pizzas, Bebidas, Sobremesas..."
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setCategoryDialogOpen(false)}
+                    className="flex-1"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button type="submit" disabled={loading} className="flex-1 pdv-button-primary">
+                    {loading ? "Salvando..." : editingCategory ? "Atualizar" : "Criar"}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        {/* Categories List */}
+        {categories.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {categories.map((category) => (
+              <Card key={category.id} className="pdv-card">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg text-foreground">
+                    {category.name}
+                  </CardTitle>
+                  <CardDescription className="text-sm">
+                    Criada em {new Date(category.created_at).toLocaleDateString()}
+                  </CardDescription>
+                </CardHeader>
+
+                <CardContent className="pt-0">
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEditCategory(category)}
+                      className="flex-1"
+                    >
+                      <Edit className="w-4 h-4 mr-1" />
+                      Editar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDeleteCategory(category.id)}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <Package className="w-12 h-12 text-muted-foreground/50 mx-auto mb-3" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">
+              Nenhuma categoria criada
+            </h3>
+            <p className="text-muted-foreground mb-4">
+              Crie categorias para organizar melhor seus produtos
+            </p>
+            <Button onClick={() => setCategoryDialogOpen(true)} variant="outline">
+              <Plus className="w-4 h-4 mr-2" />
+              Criar Primeira Categoria
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
