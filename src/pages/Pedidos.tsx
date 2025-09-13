@@ -46,7 +46,7 @@ import {
   Clock,
   CheckCircle,
   Package,
-  CreditCard, // Added
+  CreditCard,
   Edit,
   Trash2,
   Phone,
@@ -59,7 +59,13 @@ const Pedidos = () => {
 
   const [products, setProducts] = useState<any[]>([]);
 
+  const [customers, setCustomers] = useState<any[]>([]);
+
+  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+
   const [searchTerm, setSearchTerm] = useState("");
+
+  const [customerSearchTerm, setCustomerSearchTerm] = useState("");
 
   const [statusFilter, setStatusFilter] = useState("todos");
 
@@ -94,6 +100,10 @@ const Pedidos = () => {
     setOrderItems(
       order.order_items.map((item: any) => ({ ...item, product_id: item.products.id }))
     );
+    setSelectedCustomer({
+      name: order.customer_name || "",
+      phone: order.customer_phone || "",
+    });
     setDialogOpen(true);
   };
 
@@ -123,7 +133,7 @@ const Pedidos = () => {
 
     { value: "entregue", label: "Entregue", icon: CheckCircle, color: "secondary" },
 
-    { value: "pago", label: "Pago", icon: CreditCard, color: "default" }, // Fixed invalid variant
+    { value: "pago", label: "Pago", icon: CreditCard, color: "default" },
   ];
 
   const statusClasses: { [key: string]: string } = {
@@ -150,7 +160,7 @@ const Pedidos = () => {
         .is("closed_at", null)
         .single();
 
-      if (error && error.code !== "PGRST116") { // PGRST116 = no rows found
+      if (error && error.code !== "PGRST116") {
         throw error;
       }
       setIsCashRegisterOpen(!!data);
@@ -169,20 +179,17 @@ const Pedidos = () => {
 
     loadProducts();
 
+    loadCustomers();
+
     checkCashRegisterStatus();
 
     const channel = supabase
-
       .channel("orders-updates")
-
       .on(
         "postgres_changes",
-
         { event: "*", schema: "public", table: "orders" },
-
         () => loadOrders(),
       )
-
       .subscribe();
 
     return () => {
@@ -237,11 +244,27 @@ const Pedidos = () => {
     }
   };
 
+  const loadCustomers = async () => {
+    try {
+      const { data: customersData, error: customersError } = await supabase
+        .from("customers")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (customersError) throw customersError;
+      setCustomers(customersData);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Erro ao carregar clientes",
+        description: error.message,
+      });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
 
-    // Check if cash register is open
     if (isCashRegisterOpen === false) {
       toast({
         variant: "destructive",
@@ -254,6 +277,14 @@ const Pedidos = () => {
 
     const orderPayload: any = { ...formData };
 
+    if (selectedCustomer) {
+      orderPayload.customer_name = selectedCustomer.name;
+      orderPayload.customer_phone = selectedCustomer.phone;
+    } else {
+      orderPayload.customer_name = formData.customer_name;
+      orderPayload.customer_phone = formData.customer_phone;
+    }
+
     if (orderPayload.type !== "mesa") {
       orderPayload.table_number = null;
     } else {
@@ -263,13 +294,13 @@ const Pedidos = () => {
     const validOrderItems = orderItems.filter((item) => item.product_id);
 
     if (validOrderItems.length === 0) {
-        toast({
-            variant: "destructive",
-            title: "Pedido sem itens",
-            description: "Adicione pelo menos um item ao pedido.",
-        });
-        setIsSaving(false);
-        return;
+      toast({
+        variant: "destructive",
+        title: "Pedido sem itens",
+        description: "Adicione pelo menos um item ao pedido.",
+      });
+      setIsSaving(false);
+      return;
     }
 
     try {
@@ -294,7 +325,7 @@ const Pedidos = () => {
 
         if (error) throw error;
         orderId = data.id;
-      }
+      } 
 
       const currentItems = editingOrder ? editingOrder.order_items.map((item: any) => item.id) : [];
       const newItems = validOrderItems.map((item) => item.id).filter((id) => id);
@@ -398,24 +429,16 @@ const Pedidos = () => {
     setIsSaving(true);
 
     try {
-      // 1. Find the currently open cash box
-
       const { data: cashBox, error: cashBoxError } = await supabase
-
         .from("cash_boxes")
-
         .select("id")
-
         .is("closed_at", null)
-
         .single();
 
       if (cashBoxError || !cashBox) {
         toast({
           variant: "destructive",
-
           title: "Erro de Caixa",
-
           description:
             "Nenhum caixa aberto. Por favor, abra um caixa antes de finalizar o pagamento.",
         });
@@ -423,7 +446,6 @@ const Pedidos = () => {
         throw new Error("Nenhum caixa aberto.");
       }
 
-      // 2. Insert the payment as a cash movement
       const { error: movementError } = await supabase
         .from("cash_movements")
         .insert({
@@ -433,35 +455,27 @@ const Pedidos = () => {
           notes: `Pagamento do Pedido #${payingOrder.order_number || payingOrder.id}`
         });
 
-      if (movementError) throw movementError; // 3. Update the order status to 'pago'
+      if (movementError) throw movementError;
 
       const { error: orderError } = await supabase
-
         .from("orders")
-
         .update({ status: "pago" })
-
         .eq("id", payingOrder.id);
 
       if (orderError) throw orderError;
 
       toast({
         title: "Pagamento Finalizado",
-
         description: `O pedido #${payingOrder.order_number || payingOrder.id} foi pago com sucesso.`,
       });
 
       setPaymentDialogOpen(false);
-
       setPayingOrder(null);
-
-      loadOrders(); // Refresh orders
+      loadOrders();
     } catch (error: any) {
       toast({
         variant: "destructive",
-
         title: "Erro ao finalizar pagamento",
-
         description: error.message,
       });
     } finally {
@@ -471,11 +485,8 @@ const Pedidos = () => {
 
   const openPaymentDialog = (order: any) => {
     setPayingOrder(order);
-
     setAmountReceived("");
-
     setPaymentMethod("dinheiro");
-
     setPaymentDialogOpen(true);
   };
 
@@ -488,6 +499,15 @@ const Pedidos = () => {
       statusFilter === "todos" || order.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  const filteredCustomers = customers.filter((customer) => {
+    const term = customerSearchTerm.toLowerCase();
+    return (
+      customer.name.toLowerCase().includes(term) ||
+      (customer.phone && customer.phone.toLowerCase().includes(term))
+    );
+  });
+
   const getStatusIcon = (status: string) => {
     const option = statusOptions.find((opt) => opt.value === status);
     return option?.icon || Clock;
@@ -495,15 +515,12 @@ const Pedidos = () => {
 
   const change = useMemo(() => {
     const total = payingOrder?.total || 0;
-
     const received = parseFloat(amountReceived) || 0;
-
     if (paymentMethod !== "dinheiro" || received <= total) {
       return 0;
     }
-
     return received - total;
-  }, [payingOrder, amountReceived, paymentMethod]); // ... (rest of the component)
+  }, [payingOrder, amountReceived, paymentMethod]);
 
   const handleItemChange = (index: number, newProductId: string, newQuantity: string) => {
     const updatedItems = [...orderItems];
@@ -525,7 +542,6 @@ const Pedidos = () => {
     setOrderItems(updatedItems);
   };
 
-
   return (
     <div className="p-6 space-y-6 animate-fade-in">
       {/* Header and Filters */}
@@ -533,7 +549,20 @@ const Pedidos = () => {
         <h1 className="text-3xl font-bold">Pedidos</h1>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => setEditingOrder(null)}>
+            <Button onClick={() => {
+              setEditingOrder(null);
+              setSelectedCustomer(null);
+              setFormData({
+                customer_name: "",
+                customer_phone: "",
+                table_number: "",
+                type: "balcao",
+                status: "aberto",
+                notes: "",
+              });
+              setOrderItems([]);
+              setDialogOpen(true);
+            }}>
               <Plus className="mr-2 h-4 w-4" /> Novo Pedido
             </Button>
           </DialogTrigger>
@@ -549,6 +578,41 @@ const Pedidos = () => {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
+                  <Label htmlFor="customer_select">Cliente</Label>
+                  <Select
+                    id="customer_select"
+                    value={selectedCustomer ? selectedCustomer.id : ""}
+                    onValueChange={(value) => {
+                      const customer = customers.find(c => c.id === value);
+                      setSelectedCustomer(customer || null);
+                      if (customer) {
+                        setFormData({
+                          ...formData,
+                          customer_name: customer.name,
+                          customer_phone: customer.phone,
+                        });
+                      } else {
+                        setFormData({
+                          ...formData,
+                          customer_name: "",
+                          customer_phone: "",
+                        });
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {filteredCustomers.map((customer) => (
+                        <SelectItem key={customer.id} value={customer.id}>
+                          {customer.name} {customer.phone ? `- ${customer.phone}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="customer_name">Nome do Cliente</Label>
                   <Input
                     id="customer_name"
@@ -556,6 +620,7 @@ const Pedidos = () => {
                     onChange={(e) =>
                       setFormData({ ...formData, customer_name: e.target.value })
                     }
+                    disabled={!!selectedCustomer}
                   />
                 </div>
                 <div className="space-y-2">
@@ -566,6 +631,7 @@ const Pedidos = () => {
                     onChange={(e) =>
                       setFormData({ ...formData, customer_phone: e.target.value })
                     }
+                    disabled={!!selectedCustomer}
                   />
                 </div>
               </div>
@@ -658,8 +724,7 @@ const Pedidos = () => {
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 />
               </div>
-
-              <DialogFooter className="pt-4">
+              <div className="flex justify-end gap-2">
                 {editingOrder && (
                   <Button
                     type="button"
@@ -670,35 +735,40 @@ const Pedidos = () => {
                     {isDeleting ? "Excluindo..." : "Excluir Pedido"}
                   </Button>
                 )}
-                <Button type="submit" disabled={isSaving}>
-                  {isSaving
-                    ? "Salvando..."
-                    : editingOrder
-                    ? "Salvar Alterações"
-                    : "Criar Pedido"}
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setDialogOpen(false)}
+                  disabled={isSaving}
+                >
+                  Cancelar
                 </Button>
-              </DialogFooter>
+                <Button type="submit" disabled={isSaving}>
+                  {isSaving ? (editingOrder ? "Atualizando..." : "Salvando...") : (editingOrder ? "Atualizar Pedido" : "Salvar Pedido")}
+                </Button>
+              </div>
             </form>
           </DialogContent>
         </Dialog>
       </div>
 
-      <div className="flex items-center space-x-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por cliente..."
-            className="pl-10"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Filtrar por status" />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <Input
+          placeholder="Buscar por nome do cliente..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="max-w-sm"
+          icon={<Search className="w-4 h-4 text-muted-foreground" />}
+        />
+        <Select
+          value={statusFilter}
+          onValueChange={(value) => setStatusFilter(value)}
+        >
+          <SelectTrigger className="w-48">
+            <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="todos">Todos</SelectItem>
+            <SelectItem value="todos">Todos os Status</SelectItem>
             {statusOptions.map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}
@@ -708,22 +778,28 @@ const Pedidos = () => {
         </Select>
       </div>
 
-      {/* Orders Grid */}
+      {/* Orders List */}
       {isLoading ? (
-        <div className="text-center">
+        <div className="text-center py-12">
           <p>Carregando pedidos...</p>
         </div>
       ) : filteredOrders.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {filteredOrders.map((order) => {
             const StatusIcon = getStatusIcon(order.status);
             return (
-              <Card key={order.id} className="pdv-card flex flex-col">
-                <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-lg font-bold">
-                    Pedido #{order.order_number || order.id}
-                  </CardTitle>
-                  <Badge className={statusClasses[order.status]}>
+              <Card key={order.id} className="flex flex-col h-full">
+                <CardHeader className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg font-bold">
+                      Pedido #{order.order_number || order.id}
+                    </CardTitle>
+                    <CardDescription className="text-sm text-muted-foreground">
+                      {new Date(order.created_at).toLocaleString()}
+                    </CardDescription>
+                  </div>
+                  <Badge className={`px-2 py-1 ${statusClasses[order.status] || 'bg-gray-500 text-white'}`}>
+                    {order.status}
                     <StatusIcon className="w-4 h-4 mr-2" />
                     {statusOptions.find((s) => s.value === order.status)?.label}
                   </Badge>

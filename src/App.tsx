@@ -9,6 +9,7 @@ import Auth from "./pages/Auth";
 import Produtos from "./pages/Produtos";
 import Pedidos from "./pages/Pedidos";
 import Caixa from "./pages/Caixa";
+import Clientes from "./pages/Clientes";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,6 +40,10 @@ const router = createBrowserRouter([
         path: "caixa",
         element: <Caixa />,
       },
+      {
+        path: "clientes",
+        element: <Clientes />,
+      },
     ],
   },
   {
@@ -54,7 +59,7 @@ const App = () => (
       <Sonner />
       <RouterProvider router={router} future={{ 
         v7_startTransition: true,
-        v7_relativeSplatPath: true 
+        v7_relativeSplatPath: true
       }} />
     </TooltipProvider>
   </QueryClientProvider>
