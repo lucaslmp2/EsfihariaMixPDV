@@ -196,3 +196,36 @@
     @apply bg-input border border-border rounded-lg px-4 py-3 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent transition-smooth;
   }
 }
+
+@media print {
+  /* Isolation Logic */
+  body * {
+    visibility: hidden;
+  }
+  .printable-area, .printable-area * {
+    visibility: visible;
+  }
+  .printable-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm; /* Set the desired width */
+    font-size: 12px;
+    margin: 0;
+  }
+
+  /* Table styles within the printable area */
+  .printable-area table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .printable-area th, .printable-area td {
+    border: 1px solid #000;
+    padding: 2px 4px;
+  }
+
+  /* Hide elements marked as no-print */
+  .no-print {
+    display: none !important;
+  }
+}

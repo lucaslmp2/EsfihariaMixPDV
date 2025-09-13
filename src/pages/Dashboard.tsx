@@ -74,12 +74,32 @@ const Dashboard = () => {
         .select(`
           *,
           order_items (
-            qty,
+            quantity,
+            total,
             products (name)
           )
         `)
         .order('created_at', { ascending: false })
         .limit(5);
+
+      // build sequence map to convert UUID to simple increasing numbers
+      const { data: allOrders } = await supabase
+        .from('orders')
+        .select('id')
+        .order('created_at', { ascending: true });
+
+      const seqMap = new Map<string, number>();
+      (allOrders || []).forEach((o: any, idx: number) => seqMap.set(o.id, idx + 1));
+
+      const mapped = (orders || []).map((order: any) => ({
+        ...order,
+        order_number: seqMap.get(order.id) || 0,
+        order_items: order.order_items?.map((it: any) => ({
+          ...it,
+          qty: it.quantity ?? it.qty,
+          total_price: it.total ?? it.total_price,
+        })),
+      }));
 
       if (todayOrders) {
         const totalSales = todayOrders.reduce((sum, order) => sum + (order.total || 0), 0);
@@ -94,7 +114,7 @@ const Dashboard = () => {
         });
       }
 
-      setRecentOrders(orders || []);
+      setRecentOrders(mapped);
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -247,7 +267,7 @@ const Dashboard = () => {
                     <div className="flex items-center gap-2">
                       {getStatusIcon(order.status)}
                       <span className="font-medium text-foreground">
-                        Pedido #{order.id}
+                        Pedido #{order.order_number || order.id}
                       </span>
                     </div>
                     <Badge variant={getStatusColor(order.status) as any}>

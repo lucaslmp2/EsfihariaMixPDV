@@ -42,7 +42,9 @@ const Pedidos = () => {
   const [products, setProducts] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [editingOrder, setEditingOrder] = useState<any>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [orderItems, setOrderItems] = useState<any[]>([]);
@@ -102,16 +104,39 @@ const Pedidos = () => {
           *,
           order_items (
             id,
-            qty,
+            quantity,
             unit_price,
-            total_price,
+            total,
             products (name)
           )
         `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setOrders(data || []);
+
+      // Build a sequence map for orders based on created_at ascending
+      const { data: allOrders, error: allOrdersError } = await supabase
+        .from('orders')
+        .select('id')
+        .order('created_at', { ascending: true });
+
+      if (allOrdersError) throw allOrdersError;
+
+      const seqMap = new Map<string, number>();
+      (allOrders || []).forEach((o: any, idx: number) => seqMap.set(o.id, idx + 1));
+
+      // map database column names to UI-friendly keys (qty, total_price) and add order_number
+      const mapped = (data || []).map((order: any) => ({
+        ...order,
+        order_number: seqMap.get(order.id) || 0,
+        order_items: order.order_items?.map((it: any) => ({
+          ...it,
+          qty: it.quantity ?? it.qty,
+          total_price: it.total ?? it.total_price,
+        })),
+      }));
+
+      setOrders(mapped);
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -119,7 +144,7 @@ const Pedidos = () => {
         description: error.message,
       });
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -153,7 +178,7 @@ const Pedidos = () => {
       return;
     }
 
-    setLoading(true);
+    setIsSaving(true);
 
     try {
       const total = orderItems.reduce((sum, item) => sum + item.total_price, 0);
@@ -190,12 +215,13 @@ const Pedidos = () => {
       }
 
       // Insert order items
+      // map UI keys to DB column names (quantity, total)
       const itemsToInsert = orderItems.map(item => ({
         order_id: orderId,
         product_id: item.product_id,
-        qty: item.qty,
+        quantity: item.qty,
         unit_price: item.unit_price,
-        total_price: item.total_price,
+        // `total` is a generated column (quantity * unit_price) in the DB, do not send it
       }));
 
       const { error: itemsError } = await supabase
@@ -219,15 +245,51 @@ const Pedidos = () => {
         description: error.message,
       });
     } finally {
-      setLoading(false);
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteOrder = async () => {
+    if (!editingOrder) return;
+
+    if (!window.confirm("Tem certeza que deseja apagar este pedido? Esta ação não pode ser desfeita.")) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      // Chama a função do banco de dados para uma exclusão atômica
+      const { error } = await supabase.rpc('delete_order', {
+        order_id_to_delete: editingOrder.id,
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Pedido apagado",
+        description: "O pedido foi removido com sucesso.",
+      });
+
+      setDialogOpen(false);
+      resetForm();
+      loadOrders();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Erro ao apagar pedido",
+        description: error.message,
+      });
+    } finally {
+      setIsDeleting(false);
     }
   };
 
   const updateOrderStatus = async (orderId: number, newStatus: string) => {
     try {
+      // Do not send `updated_at` field in case the column is not present in the DB schema
       const { error } = await supabase
         .from('orders')
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .update({ status: newStatus })
         .eq('id', orderId);
 
       if (error) throw error;
@@ -297,6 +359,30 @@ const Pedidos = () => {
     setEditingOrder(null);
   };
 
+  const handleEditOrder = (order: any) => {
+    // populate form with order data
+    setEditingOrder(order);
+    setFormData({
+      customer_name: order.customer_name || "",
+      customer_phone: order.customer_phone || "",
+      table_number: order.table_number || "",
+      type: order.type || "balcao",
+      status: order.status || "aberto",
+      notes: order.notes || "",
+    });
+
+    const items = order.order_items?.map((it: any) => ({
+      product_id: it.product_id,
+      product_name: it.products?.name || it.product_name || "",
+      qty: it.qty ?? it.quantity ?? 1,
+      unit_price: it.unit_price ?? 0,
+      total_price: it.total_price ?? it.total ?? 0,
+    })) || [];
+
+    setOrderItems(items);
+    setDialogOpen(true);
+  };
+
   const getStatusIcon = (status: string) => {
     const statusOption = statusOptions.find(s => s.value === status);
     return statusOption ? statusOption.icon : Clock;
@@ -316,7 +402,7 @@ const Pedidos = () => {
     return matchesSearch && matchesStatus;
   });
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="p-6">
         <div className="animate-pulse space-y-6">
@@ -505,22 +591,37 @@ const Pedidos = () => {
                 />
               </div>
               
-              <div className="flex gap-2 pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setDialogOpen(false)}
-                  className="flex-1"
-                >
-                  Cancelar
-                </Button>
-                <Button 
-                  type="submit" 
-                  disabled={loading || orderItems.length === 0} 
-                  className="flex-1 pdv-button-primary"
-                >
-                  {loading ? "Salvando..." : editingOrder ? "Atualizar" : "Criar Pedido"}
-                </Button>
+              <div className="flex justify-between items-center pt-4">
+                <div>
+                  {editingOrder && (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      onClick={handleDeleteOrder}
+                      disabled={isSaving || isDeleting}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      {isDeleting ? "Apagando..." : "Apagar"}
+                    </Button>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setDialogOpen(false)}
+                    disabled={isSaving || isDeleting}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={isSaving || isDeleting || orderItems.length === 0}
+                    className="pdv-button-primary"
+                  >
+                    {isSaving ? "Salvando..." : editingOrder ? "Atualizar" : "Criar Pedido"}
+                  </Button>
+                </div>
               </div>
             </form>
           </DialogContent>
@@ -560,12 +661,17 @@ const Pedidos = () => {
           {filteredOrders.map((order) => {
             const StatusIcon = getStatusIcon(order.status);
             return (
-              <Card key={order.id} className="pdv-card">
+              <Card key={order.id} className="pdv-card" onDoubleClick={() => handleEditOrder(order)}>
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div>
                       <CardTitle className="text-lg text-foreground">
-                        Pedido #{order.id}
+                        <div className="flex items-center justify-between">
+                          <span>Pedido #{order.order_number || order.id}</span>
+                          <Button size="sm" variant="ghost" onClick={() => handleEditOrder(order)}>
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                        </div>
                       </CardTitle>
                       <div className="flex items-center gap-2 mt-1">
                         <Badge variant={getStatusColor(order.status) as any}>
