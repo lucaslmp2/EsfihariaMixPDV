@@ -2,3 +2,197 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Esfiharia PDV Design System - Cores quentes e acolhedoras */
+
+@layer base {
+  :root {
+    /* Core colors - Tons quentes da esfiharia */
+    --background: 35 20% 97%;
+    --foreground: 20 14% 15%;
+
+    --card: 35 25% 98%;
+    --card-foreground: 20 14% 15%;
+
+    --popover: 35 25% 98%;
+    --popover-foreground: 20 14% 15%;
+
+    /* Primary - Dourado da esfiharia */
+    --primary: 38 75% 45%;
+    --primary-foreground: 35 25% 98%;
+    --primary-hover: 38 75% 40%;
+    --primary-glow: 38 85% 65%;
+
+    /* Secondary - Marrom acolhedor */
+    --secondary: 25 35% 85%;
+    --secondary-foreground: 20 14% 15%;
+
+    --muted: 30 20% 88%;
+    --muted-foreground: 25 10% 45%;
+
+    /* Accent - Laranja suave */
+    --accent: 28 65% 88%;
+    --accent-foreground: 20 14% 15%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 35 25% 98%;
+
+    --border: 30 25% 88%;
+    --input: 35 20% 94%;
+    --ring: 38 75% 45%;
+
+    --radius: 0.75rem;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
+    --gradient-warm: linear-gradient(180deg, hsl(35 30% 95%), hsl(35 25% 92%));
+    --gradient-gold: linear-gradient(45deg, hsl(38 75% 45%), hsl(45 80% 55%));
+
+    /* Shadows */
+    --shadow-warm: 0 4px 20px hsl(38 75% 45% / 0.15);
+    --shadow-soft: 0 2px 10px hsl(20 14% 15% / 0.08);
+    --shadow-glow: 0 0 30px hsl(var(--primary-glow) / 0.3);
+
+    /* Animations */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    /* Dark mode - Tom mais escuro e aconchegante para uso noturno */
+    --background: 20 15% 8%;
+    --foreground: 35 25% 95%;
+
+    --card: 20 15% 10%;
+    --card-foreground: 35 25% 95%;
+
+    --popover: 20 15% 10%;
+    --popover-foreground: 35 25% 95%;
+
+    --primary: 38 75% 55%;
+    --primary-foreground: 20 15% 8%;
+    --primary-hover: 38 75% 50%;
+    --primary-glow: 38 85% 70%;
+
+    --secondary: 25 20% 18%;
+    --secondary-foreground: 35 25% 95%;
+
+    --muted: 25 15% 15%;
+    --muted-foreground: 30 15% 60%;
+
+    --accent: 28 30% 20%;
+    --accent-foreground: 35 25% 95%;
+
+    --destructive: 0 84% 65%;
+    --destructive-foreground: 35 25% 95%;
+
+    --border: 25 15% 20%;
+    --input: 25 15% 15%;
+    --ring: 38 75% 55%;
+
+    --sidebar-background: 20 15% 6%;
+    --sidebar-foreground: 35 25% 90%;
+    --sidebar-primary: 38 75% 55%;
+    --sidebar-primary-foreground: 20 15% 8%;
+    --sidebar-accent: 25 15% 12%;
+    --sidebar-accent-foreground: 35 25% 90%;
+    --sidebar-border: 25 15% 15%;
+    --sidebar-ring: 38 75% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+
+  /* Scrollbar personalizada */
+  ::-webkit-scrollbar {
+    @apply w-2;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-muted;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/30;
+  }
+}
+
+@layer components {
+  /* Gradient backgrounds */
+  .bg-gradient-primary {
+    background: var(--gradient-primary);
+  }
+
+  .bg-gradient-warm {
+    background: var(--gradient-warm);
+  }
+
+  .bg-gradient-gold {
+    background: var(--gradient-gold);
+  }
+
+  /* Shadow utilities */
+  .shadow-warm {
+    box-shadow: var(--shadow-warm);
+  }
+
+  .shadow-soft {
+    box-shadow: var(--shadow-soft);
+  }
+
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+
+  /* Animation utilities */
+  .transition-smooth {
+    transition: var(--transition-smooth);
+  }
+
+  .transition-bounce {
+    transition: var(--transition-bounce);
+  }
+
+  /* PDV specific utilities */
+  .pdv-card {
+    @apply bg-card border border-border rounded-xl shadow-soft p-6 transition-smooth;
+  }
+
+  .pdv-card:hover {
+    @apply shadow-warm transform -translate-y-1;
+  }
+
+  .pdv-button-primary {
+    @apply bg-gradient-primary text-primary-foreground font-semibold py-3 px-6 rounded-lg shadow-warm transition-smooth hover:shadow-glow hover:scale-105;
+  }
+
+  .pdv-input {
+    @apply bg-input border border-border rounded-lg px-4 py-3 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-ring focus:border-transparent transition-smooth;
+  }
+}
