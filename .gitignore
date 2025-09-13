@@ -24,4 +24,4 @@ dist-ssr
 *.sw?
 
 # ocultando client
-.client.ts
+**/.client.ts
