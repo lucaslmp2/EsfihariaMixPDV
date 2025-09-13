@@ -85,6 +85,7 @@ const Dashboard = () => {
           created_at,
           status,
           customer_name,
+          order_number,
           order_items (quantity, products(price, name))
         `)
         .order('created_at', { ascending: false })
@@ -235,7 +236,7 @@ const Dashboard = () => {
         </Card>
 
         <Card className="pdv-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-.2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               Produtos Ativos
             </CardTitle>
@@ -273,7 +274,7 @@ const Dashboard = () => {
                     <div className="flex items-center gap-2">
                       {getStatusIcon(order.status)}
                       <span className="font-medium text-foreground">
-                        Pedido #{order.id}
+                        Pedido #{order.order_number || order.id}
                       </span>
                     </div>
                     <Badge variant={getStatusColor(order.status) as any}>

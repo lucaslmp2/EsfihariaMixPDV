@@ -43,6 +43,14 @@ const Caixa = () => {
   const [dialogMode, setDialogMode] = useState<"open" | "movement" | "close">("open");
   const [movementType, setMovementType] = useState<"entrada" | "saida">("entrada");
   const [formValues, setFormValues] = useState({ amount: "", notes: "" });
+  const [reconciliationData, setReconciliationData] = useState({
+    dinheiro: "",
+    cartao_credito: "",
+    cartao_debito: "",
+    pix: "",
+    outros: "",
+  });
+  const [reconciliationNotes, setReconciliationNotes] = useState("");
   const [user, setUser] = useState<any>(null);
   const { toast } = useToast();
 
@@ -180,15 +188,59 @@ const Caixa = () => {
   const handleCloseCaixa = async () => {
     setIsSubmitting(true);
     try {
+      // Calculate actual total from reconciliation data
+      const actualTotal = Object.values(reconciliationData).reduce((sum, amount) => {
+        return sum + (parseFloat(amount) || 0);
+      }, 0);
+
+      const expectedTotal = summary.total;
+      const reconciled = Math.abs(actualTotal - expectedTotal) < 0.01; // Allow small floating point differences
+
+      // If not reconciled and no justification notes, prevent closing
+      if (!reconciled && !reconciliationNotes.trim()) {
+        toast({
+          variant: "destructive",
+          title: "Reconcilição Necessária",
+          description: "Os valores não conferem. Forneça uma justificativa para a diferença."
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      const updateData: any = {
+        closed_at: new Date().toISOString(),
+        final_amount: summary.total,
+        reconciliation_data: reconciliationData,
+        reconciled: reconciled,
+      };
+
+      if (!reconciled && reconciliationNotes.trim()) {
+        updateData.reconciliation_notes = reconciliationNotes.trim();
+      }
+
       const { error } = await supabase
         .from("cash_boxes")
-        .update({ closed_at: new Date().toISOString(), final_amount: summary.total })
+        .update(updateData)
         .eq("id", currentCaixa.id);
+
       if (error) throw error;
+
       setCurrentCaixa(null);
       setMovements([]);
       setDialogOpen(false);
-      toast({ title: "Caixa Fechado", description: "O caixa foi fechado com sucesso." });
+      setReconciliationData({
+        dinheiro: "",
+        cartao_credito: "",
+        cartao_debito: "",
+        pix: "",
+        outros: "",
+      });
+      setReconciliationNotes("");
+
+      toast({
+        title: "Caixa Fechado",
+        description: reconciled ? "O caixa foi fechado com sucesso." : "O caixa foi fechado com justificativa para diferença."
+      });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Erro ao fechar caixa", description: error.message });
     } finally {
@@ -273,28 +325,148 @@ const Caixa = () => {
           </>
         );
       case "close":
+        const actualTotal = Object.values(reconciliationData).reduce((sum, amount) => {
+          return sum + (parseFloat(amount) || 0);
+        }, 0);
+        const expectedTotal = summary.total;
+        const difference = actualTotal - expectedTotal;
+        const reconciled = Math.abs(difference) < 0.01;
+
         return (
           <>
             <DialogHeader>
-              <DialogTitle>Confirmar Fechamento do Caixa</DialogTitle>
+              <DialogTitle>Fechar Caixa - Reconcilição</DialogTitle>
               <DialogDescription>
-                Você tem certeza que deseja fechar o caixa atual? Esta ação não pode ser desfeita.
+                Informe os valores reais por tipo de pagamento para reconciliar o caixa.
               </DialogDescription>
             </DialogHeader>
-            <Card className="my-4">
+
+            <div className="space-y-4">
+              <Card>
                 <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium">Resumo do Caixa</CardTitle>
+                    <CardTitle className="text-sm font-medium">Resumo do Sistema</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                     <div className="flex justify-between"><span>Valor Inicial:</span> <span>R$ {summary.initial.toFixed(2)}</span></div>
                     <div className="flex justify-between"><span>Total de Entradas:</span> <span className="text-green-500">R$ {summary.entries.toFixed(2)}</span></div>
                     <div className="flex justify-between"><span>Total de Saídas:</span> <span className="text-red-500">R$ {summary.exits.toFixed(2)}</span></div>
-                    <div className="flex justify-between font-bold text-lg"><span>Saldo Final:</span> <span>R$ {summary.total.toFixed(2)}</span></div>
+                    <div className="flex justify-between font-bold text-lg"><span>Saldo Esperado:</span> <span>R$ {summary.total.toFixed(2)}</span></div>
                 </CardContent>
-            </Card>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Valores Reais por Tipo de Pagamento</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="dinheiro">Dinheiro</Label>
+                      <Input
+                        id="dinheiro"
+                        type="number"
+                        step="0.01"
+                        value={reconciliationData.dinheiro}
+                        onChange={(e) => setReconciliationData({...reconciliationData, dinheiro: e.target.value})}
+                        placeholder="0,00"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="cartao_credito">Cartão Crédito</Label>
+                      <Input
+                        id="cartao_credito"
+                        type="number"
+                        step="0.01"
+                        value={reconciliationData.cartao_credito}
+                        onChange={(e) => setReconciliationData({...reconciliationData, cartao_credito: e.target.value})}
+                        placeholder="0,00"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="cartao_debito">Cartão Débito</Label>
+                      <Input
+                        id="cartao_debito"
+                        type="number"
+                        step="0.01"
+                        value={reconciliationData.cartao_debito}
+                        onChange={(e) => setReconciliationData({...reconciliationData, cartao_debito: e.target.value})}
+                        placeholder="0,00"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="pix">PIX</Label>
+                      <Input
+                        id="pix"
+                        type="number"
+                        step="0.01"
+                        value={reconciliationData.pix}
+                        onChange={(e) => setReconciliationData({...reconciliationData, pix: e.target.value})}
+                        placeholder="0,00"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <Label htmlFor="outros">Outros</Label>
+                      <Input
+                        id="outros"
+                        type="number"
+                        step="0.01"
+                        value={reconciliationData.outros}
+                        onChange={(e) => setReconciliationData({...reconciliationData, outros: e.target.value})}
+                        placeholder="0,00"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-between font-bold text-lg pt-2 border-t">
+                    <span>Total Real:</span>
+                    <span className={reconciled ? "text-green-600" : "text-red-600"}>
+                      R$ {actualTotal.toFixed(2)}
+                    </span>
+                  </div>
+                  {!reconciled && (
+                    <div className="flex justify-between text-sm">
+                      <span>Diferença:</span>
+                      <span className={difference > 0 ? "text-green-600" : "text-red-600"}>
+                        {difference > 0 ? "+" : ""}R$ {difference.toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {!reconciled && (
+                <Card className="border-red-200">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium text-red-700">Justificativa da Diferença</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Textarea
+                      value={reconciliationNotes}
+                      onChange={(e) => setReconciliationNotes(e.target.value)}
+                      placeholder="Explique a diferença entre o saldo esperado e real..."
+                      className="min-h-[80px]"
+                    />
+                  </CardContent>
+                </Card>
+              )}
+
+              <div className="text-center">
+                {reconciled ? (
+                  <p className="text-green-600 font-medium">✓ Valores conferem - Caixa pode ser fechado</p>
+                ) : reconciliationNotes.trim() ? (
+                  <p className="text-orange-600 font-medium">⚠ Diferença justificada - Caixa pode ser fechado</p>
+                ) : (
+                  <p className="text-red-600 font-medium">✗ Valores não conferem - Justificativa obrigatória</p>
+                )}
+              </div>
+            </div>
+
             <DialogFooter>
               <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-              <Button variant="destructive" onClick={handleCloseCaixa} disabled={isSubmitting}>
+              <Button
+                variant="destructive"
+                onClick={handleCloseCaixa}
+                disabled={isSubmitting || (!reconciled && !reconciliationNotes.trim())}
+              >
                 {isSubmitting ? "Fechando..." : "Confirmar e Fechar"}
               </Button>
             </DialogFooter>
@@ -335,8 +507,12 @@ const Caixa = () => {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 no-print">
             <div>
               <h1 className="text-3xl font-bold">Gestão de Caixa</h1>
-              <p className="text-muted-foreground">
-                Caixa aberto em: {new Date(currentCaixa.created_at).toLocaleString()} por {user?.email}
+                    <p className="text-muted-foreground">
+                Caixa aberto em: {
+                  (() => {
+                    return currentCaixa.opened_at ? new Date(currentCaixa.opened_at).toLocaleString() : 'Data inválida';
+                  })()
+                } por {user?.email}
               </p>
             </div>
             <div className="flex gap-2">

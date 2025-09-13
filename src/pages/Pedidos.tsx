@@ -105,6 +105,8 @@ const Pedidos = () => {
 
   const [amountReceived, setAmountReceived] = useState("");
 
+  const [isCashRegisterOpen, setIsCashRegisterOpen] = useState<boolean | null>(null);
+
   const { toast } = useToast();
 
   const statusOptions = [
@@ -119,12 +121,7 @@ const Pedidos = () => {
 
     { value: "pronto", label: "Pronto", icon: CheckCircle, color: "outline" },
 
-    {
-      value: "entregue",
-      label: "Entregue",
-      icon: CheckCircle,
-      color: "secondary",
-    },
+    { value: "entregue", label: "Entregue", icon: CheckCircle, color: "secondary" },
 
     { value: "pago", label: "Pago", icon: CreditCard, color: "default" }, // Fixed invalid variant
   ];
@@ -145,10 +142,34 @@ const Pedidos = () => {
     { value: "mesa", label: "Mesa" },
   ];
 
+  const checkCashRegisterStatus = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("cash_boxes")
+        .select("id")
+        .is("closed_at", null)
+        .single();
+
+      if (error && error.code !== "PGRST116") { // PGRST116 = no rows found
+        throw error;
+      }
+      setIsCashRegisterOpen(!!data);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Erro ao verificar caixa",
+        description: error.message,
+      });
+      setIsCashRegisterOpen(false);
+    }
+  };
+
   useEffect(() => {
     loadOrders();
 
     loadProducts();
+
+    checkCashRegisterStatus();
 
     const channel = supabase
 
@@ -203,7 +224,8 @@ const Pedidos = () => {
     try {
       const { data: productsData, error: productsError } = await supabase
         .from("products")
-        .select("*");
+        .select("*")
+        .eq("active", true);
       if (productsError) throw productsError;
       setProducts(productsData);
     } catch (error: any) {
@@ -218,6 +240,17 @@ const Pedidos = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
+
+    // Check if cash register is open
+    if (isCashRegisterOpen === false) {
+      toast({
+        variant: "destructive",
+        title: "Caixa Fechado",
+        description: "Não é possível criar pedidos com o caixa fechado. Abra um caixa antes de criar pedidos.",
+      });
+      setIsSaving(false);
+      return;
+    }
 
     const orderPayload: any = { ...formData };
 
@@ -415,7 +448,7 @@ const Pedidos = () => {
       toast({
         title: "Pagamento Finalizado",
 
-        description: `O pedido #${payingOrder.id} foi pago com sucesso.`,
+        description: `O pedido #${payingOrder.order_number || payingOrder.id} foi pago com sucesso.`,
       });
 
       setPaymentDialogOpen(false);
@@ -506,7 +539,7 @@ const Pedidos = () => {
           </DialogTrigger>
           <DialogContent className="sm:max-w-[600px]">
             <DialogHeader>
-              <DialogTitle>{editingOrder ? "Editar Pedido" : "Novo Pedido"}</DialogTitle>
+              <DialogTitle>{editingOrder ? `Editar Pedido #${editingOrder.order_number || editingOrder.id}` : "Novo Pedido"}</DialogTitle>
               <DialogDescription>
                 {editingOrder
                   ? "Atualize as informações do pedido."
@@ -801,7 +834,7 @@ const Pedidos = () => {
           <DialogHeader>
             <DialogTitle>Finalizar Pagamento</DialogTitle>
             <DialogDescription>
-              Pedido #{payingOrder?.id} - Total: R${" "}
+              Pedido #{payingOrder?.order_number || payingOrder?.id} - Total: R${" "}
               {(payingOrder?.total || 0).toFixed(2)}
             </DialogDescription>
           </DialogHeader>
