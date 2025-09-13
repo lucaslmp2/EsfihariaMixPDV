@@ -494,7 +494,8 @@ const Pedidos = () => {
     const matchesSearch =
       searchTerm === "" ||
       (order.customer_name &&
-        order.customer_name.toLowerCase().includes(searchTerm.toLowerCase()));
+        order.customer_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (order.order_number || order.id).toString().includes(searchTerm);
     const matchesStatus =
       statusFilter === "todos" || order.status === statusFilter;
     return matchesSearch && matchesStatus;
@@ -566,7 +567,7 @@ const Pedidos = () => {
               <Plus className="mr-2 h-4 w-4" /> Novo Pedido
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px]">
+          <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingOrder ? `Editar Pedido #${editingOrder.order_number || editingOrder.id}` : "Novo Pedido"}</DialogTitle>
               <DialogDescription>
@@ -603,13 +604,13 @@ const Pedidos = () => {
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione um cliente" />
                     </SelectTrigger>
-                    <SelectContent>
-                      {filteredCustomers.map((customer) => (
-                        <SelectItem key={customer.id} value={customer.id}>
-                          {customer.name} {customer.phone ? `- ${customer.phone}` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
+                  <SelectContent className="max-h-48 overflow-y-auto">
+                    {filteredCustomers.map((customer) => (
+                      <SelectItem key={customer.id} value={customer.id}>
+                        {customer.name} {customer.phone ? `- ${customer.phone}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
@@ -683,7 +684,7 @@ const Pedidos = () => {
                         <SelectTrigger>
                           <SelectValue placeholder="Selecione um produto" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="max-h-48 overflow-y-auto">
                           {products.map((product) => (
                             <SelectItem key={product.id} value={product.id}>
                               {product.name}
@@ -754,11 +755,10 @@ const Pedidos = () => {
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <Input
-          placeholder="Buscar por nome do cliente..."
+          placeholder="Buscar por nome do cliente ou número do pedido..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="max-w-sm"
-          icon={<Search className="w-4 h-4 text-muted-foreground" />}
         />
         <Select
           value={statusFilter}
