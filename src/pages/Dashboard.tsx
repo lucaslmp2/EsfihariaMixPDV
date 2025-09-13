@@ -30,95 +30,97 @@ const Dashboard = () => {
   useEffect(() => {
     loadDashboardData();
     
-    // Set up real-time updates
-    const channel = supabase
-      .channel('dashboard-updates')
+    const ordersChannel = supabase
+      .channel('dashboard-orders-updates')
       .on(
         'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'orders'
-        },
-        () => {
-          loadDashboardData();
-        }
+        { event: '*', schema: 'public', table: 'orders' },
+        () => loadDashboardData()
+      )
+      .subscribe();
+
+    const movementsChannel = supabase
+      .channel('dashboard-movements-updates')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'cash_movements' },
+        () => loadDashboardData()
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(ordersChannel);
+      supabase.removeChannel(movementsChannel);
     };
   }, []);
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
-      const today = new Date().toISOString().split('T')[0];
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayISO = today.toISOString();
 
-      // Get today's sales and orders
-      const { data: todayOrders } = await supabase
+      // Get today's orders with items to calculate total
+      const { data: todayOrders, error: todayOrdersError } = await supabase
         .from('orders')
-        .select('total, status')
-        .gte('created_at', today);
+        .select('status, order_items(quantity, products(price))')
+        .gte('created_at', todayISO);
+
+      if (todayOrdersError) throw todayOrdersError;
 
       // Get total products
-      const { data: products } = await supabase
+      const { count: productsCount, error: productsError } = await supabase
         .from('products')
-        .select('id')
+        .select('*', { count: 'exact', head: true })
         .eq('active', true);
 
+      if (productsError) throw productsError;
+
       // Get recent orders with details
-      const { data: orders } = await supabase
+      const { data: recentOrdersData, error: recentOrdersError } = await supabase
         .from('orders')
         .select(`
-          *,
-          order_items (
-            quantity,
-            total,
-            products (name)
-          )
+          id,
+          created_at,
+          status,
+          customer_name,
+          order_items (quantity, products(price, name))
         `)
         .order('created_at', { ascending: false })
         .limit(5);
 
-      // build sequence map to convert UUID to simple increasing numbers
-      const { data: allOrders } = await supabase
-        .from('orders')
-        .select('id')
-        .order('created_at', { ascending: true });
+      if (recentOrdersError) throw recentOrdersError;
 
-      const seqMap = new Map<string, number>();
-      (allOrders || []).forEach((o: any, idx: number) => seqMap.set(o.id, idx + 1));
-
-      const mapped = (orders || []).map((order: any) => ({
-        ...order,
-        order_number: seqMap.get(order.id) || 0,
-        order_items: order.order_items?.map((it: any) => ({
-          ...it,
-          qty: it.quantity ?? it.qty,
-          total_price: it.total ?? it.total_price,
-        })),
-      }));
+      const calculateOrderTotal = (order: any) => 
+        order.order_items.reduce((acc: number, item: any) => acc + (item.quantity * item.products.price), 0);
 
       if (todayOrders) {
-        const totalSales = todayOrders.reduce((sum, order) => sum + (order.total || 0), 0);
+        const totalRevenue = todayOrders
+          .filter(order => order.status === 'pago')
+          .reduce((sum, order) => sum + calculateOrderTotal(order), 0);
+
         const activeOrdersCount = todayOrders.filter(order => order.status === 'aberto' || order.status === 'preparando').length;
 
         setStats({
           todaySales: todayOrders.length,
-          totalOrders: todayOrders.length,
+          totalOrders: todayOrders.length, // This seems redundant, maybe total orders all time?
           activeOrders: activeOrdersCount,
-          totalProducts: products?.length || 0,
-          revenue: totalSales,
+          totalProducts: productsCount || 0,
+          revenue: totalRevenue,
         });
       }
 
-      setRecentOrders(mapped);
+      const mappedRecentOrders = (recentOrdersData || []).map((order: any) => ({
+        ...order,
+        total: calculateOrderTotal(order),
+      }));
+
+      setRecentOrders(mappedRecentOrders);
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Erro ao carregar dados",
+        title: "Erro ao carregar dados do dashboard",
         description: error.message,
       });
     } finally {
@@ -136,6 +138,8 @@ const Dashboard = () => {
         return <CheckCircle className="w-4 h-4" />;
       case 'entregue':
         return <CheckCircle className="w-4 h-4" />;
+      case 'pago':
+        return <DollarSign className="w-4 h-4" />;
       default:
         return <AlertCircle className="w-4 h-4" />;
     }
@@ -151,6 +155,8 @@ const Dashboard = () => {
         return 'outline';
       case 'entregue':
         return 'secondary';
+      case 'pago':
+        return 'success'; // Assuming you have a success variant
       default:
         return 'destructive';
     }
@@ -223,13 +229,13 @@ const Dashboard = () => {
               R$ {stats.revenue.toFixed(2)}
             </div>
             <p className="text-xs text-muted-foreground">
-              Receita do dia
+              Receita do dia (pedidos pagos)
             </p>
           </CardContent>
         </Card>
 
         <Card className="pdv-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-.2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               Produtos Ativos
             </CardTitle>
@@ -267,7 +273,7 @@ const Dashboard = () => {
                     <div className="flex items-center gap-2">
                       {getStatusIcon(order.status)}
                       <span className="font-medium text-foreground">
-                        Pedido #{order.order_number || order.id}
+                        Pedido #{order.id}
                       </span>
                     </div>
                     <Badge variant={getStatusColor(order.status) as any}>

@@ -182,7 +182,7 @@ const Caixa = () => {
     try {
       const { error } = await supabase
         .from("cash_boxes")
-        .update({ closed_at: new Date().toISOString() })
+        .update({ closed_at: new Date().toISOString(), final_amount: summary.total })
         .eq("id", currentCaixa.id);
       if (error) throw error;
       setCurrentCaixa(null);
@@ -210,8 +210,99 @@ const Caixa = () => {
   }, [currentCaixa, movements]);
 
   const renderDialogContent = () => {
-    // This content will be hidden during print by the .no-print class on its parent
-    // ... (dialog content remains the same)
+    switch (dialogMode) {
+      case "open":
+        return (
+          <>
+            <DialogHeader>
+              <DialogTitle>Abrir Novo Caixa</DialogTitle>
+              <DialogDescription>Insira o valor inicial para abrir o caixa.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <Label htmlFor="opening-amount">Valor Inicial</Label>
+              <Input
+                id="opening-amount"
+                type="number"
+                placeholder="0,00"
+                value={formValues.amount}
+                onChange={(e) => setFormValues({ ...formValues, amount: e.target.value })}
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+              <Button onClick={handleOpenCaixa} disabled={isSubmitting}>
+                {isSubmitting ? "Abrindo..." : "Abrir Caixa"}
+              </Button>
+            </DialogFooter>
+          </>
+        );
+      case "movement":
+        return (
+          <>
+            <DialogHeader>
+              <DialogTitle>Novo Lançamento: {movementType === "entrada" ? "Entrada" : "Saída"}</DialogTitle>
+              <DialogDescription>Registre uma nova movimentação no caixa.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="movement-amount">Valor</Label>
+                <Input
+                  id="movement-amount"
+                  type="number"
+                  placeholder="0,00"
+                  value={formValues.amount}
+                  onChange={(e) => setFormValues({ ...formValues, amount: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="movement-notes">Observações (Opcional)</Label>
+                <Textarea
+                  id="movement-notes"
+                  placeholder="Ex: Pagamento de fornecedor, troco, etc."
+                  value={formValues.notes}
+                  onChange={(e) => setFormValues({ ...formValues, notes: e.target.value })}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+              <Button onClick={handleAddMovement} disabled={isSubmitting}>
+                {isSubmitting ? "Salvando..." : "Salvar Lançamento"}
+              </Button>
+            </DialogFooter>
+          </>
+        );
+      case "close":
+        return (
+          <>
+            <DialogHeader>
+              <DialogTitle>Confirmar Fechamento do Caixa</DialogTitle>
+              <DialogDescription>
+                Você tem certeza que deseja fechar o caixa atual? Esta ação não pode ser desfeita.
+              </DialogDescription>
+            </DialogHeader>
+            <Card className="my-4">
+                <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium">Resumo do Caixa</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                    <div className="flex justify-between"><span>Valor Inicial:</span> <span>R$ {summary.initial.toFixed(2)}</span></div>
+                    <div className="flex justify-between"><span>Total de Entradas:</span> <span className="text-green-500">R$ {summary.entries.toFixed(2)}</span></div>
+                    <div className="flex justify-between"><span>Total de Saídas:</span> <span className="text-red-500">R$ {summary.exits.toFixed(2)}</span></div>
+                    <div className="flex justify-between font-bold text-lg"><span>Saldo Final:</span> <span>R$ {summary.total.toFixed(2)}</span></div>
+                </CardContent>
+            </Card>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+              <Button variant="destructive" onClick={handleCloseCaixa} disabled={isSubmitting}>
+                {isSubmitting ? "Fechando..." : "Confirmar e Fechar"}
+              </Button>
+            </DialogFooter>
+          </>
+        );
+      default:
+        return null;
+    }
   };
 
   if (isLoading) {
@@ -220,8 +311,8 @@ const Caixa = () => {
 
   return (
     <div className="p-6 space-y-6">
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen} className="no-print">
-        <DialogContent>{renderDialogContent()}</DialogContent>
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="no-print">{renderDialogContent()}</DialogContent>
       </Dialog>
 
       {!currentCaixa ? (
@@ -245,7 +336,7 @@ const Caixa = () => {
             <div>
               <h1 className="text-3xl font-bold">Gestão de Caixa</h1>
               <p className="text-muted-foreground">
-                Caixa aberto em: {new Date(currentCaixa.opened_at).toLocaleString()}
+                Caixa aberto em: {new Date(currentCaixa.created_at).toLocaleString()} por {user?.email}
               </p>
             </div>
             <div className="flex gap-2">
@@ -274,8 +365,43 @@ const Caixa = () => {
           </div>
 
           {/* Summary Cards */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6 no-print">
-            {/* ... cards ... */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Saldo Inicial</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">R$ {summary.initial.toFixed(2)}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total de Entradas</CardTitle>
+                <ArrowUpCircle className="h-4 w-4 text-green-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-500">+ R$ {summary.entries.toFixed(2)}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total de Saídas</CardTitle>
+                <ArrowDownCircle className="h-4 w-4 text-red-500" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-500">- R$ {summary.exits.toFixed(2)}</div>
+              </CardContent>
+            </Card>
+            <Card className="bg-primary text-primary-foreground">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Saldo Atual</CardTitle>
+                <DollarSign className="h-4 w-4 text-primary-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">R$ {summary.total.toFixed(2)}</div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Movements Table - This is the printable area */}
@@ -301,7 +427,7 @@ const Caixa = () => {
                         <TableCell>{new Date(m.created_at).toLocaleString()}</TableCell>
                         <TableCell>
                           <span className={`font-semibold ${m.kind === 'entrada' ? 'text-green-500' : 'text-red-500'}`}>
-                            {m.kind.charAt(0).toUpperCase() + m.kind.slice(1)}
+                            {m.kind ? m.kind.charAt(0).toUpperCase() + m.kind.slice(1) : ''}
                           </span>
                         </TableCell>
                         <TableCell>R$ {m.amount.toFixed(2)}</TableCell>
