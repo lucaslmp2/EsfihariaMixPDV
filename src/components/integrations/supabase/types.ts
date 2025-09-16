@@ -22,6 +22,7 @@ export type Database = {
           initial_amount: number | null
           opened_at: string | null
           opened_by: string | null
+          starting_amount: number | null
         }
         Insert: {
           closed_amount?: number | null
@@ -30,6 +31,7 @@ export type Database = {
           initial_amount?: number | null
           opened_at?: string | null
           opened_by?: string | null
+          starting_amount?: number | null
         }
         Update: {
           closed_amount?: number | null
@@ -38,6 +40,7 @@ export type Database = {
           initial_amount?: number | null
           opened_at?: string | null
           opened_by?: string | null
+          starting_amount?: number | null
         }
         Relationships: [
           {
@@ -357,6 +360,60 @@ export type Database = {
           contact?: string | null
           id?: number
           name?: string
+        }
+        Relationships: []
+      }
+      fixed_costs: {
+        Row: {
+          id: string
+          name: string
+          amount: number
+          frequency: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          amount: number
+          frequency: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          amount?: number
+          frequency?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      variable_costs: {
+        Row: {
+          id: string
+          name: string
+          amount: number
+          date: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          amount: number
+          date: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          amount?: number
+          date?: string
+          created_at?: string
+          updated_at?: string
         }
         Relationships: []
       }

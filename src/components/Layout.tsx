@@ -14,6 +14,7 @@ import {
   Menu,
   X,
   User,
+  TrendingUp,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
@@ -32,6 +33,7 @@ const Layout = () => {
     { path: "/pedidos", icon: ShoppingCart, label: "Pedidos" },
     { path: "/caixa", icon: DollarSign, label: "Caixa" },
     { path: "/clientes", icon: Users, label: "Clientes" },
+    { path: "/financeiro", icon: TrendingUp, label: "Financeiro" },
   ];
 
   useEffect(() => {

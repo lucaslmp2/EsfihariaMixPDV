@@ -10,6 +10,7 @@ import Produtos from "./pages/Produtos";
 import Pedidos from "./pages/Pedidos";
 import Caixa from "./pages/Caixa";
 import Clientes from "./pages/Clientes";
+import Financeiro from "./pages/Financeiro";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -44,6 +45,10 @@ const router = createBrowserRouter([
         path: "clientes",
         element: <Clientes />,
       },
+      {
+        path: "financeiro",
+        element: <Financeiro />,
+      },
     ],
   },
   {
@@ -58,8 +63,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <RouterProvider router={router} future={{ 
-        v7_startTransition: true,
-        v7_relativeSplatPath: true
+        v7_startTransition: true
       }} />
     </TooltipProvider>
   </QueryClientProvider>
