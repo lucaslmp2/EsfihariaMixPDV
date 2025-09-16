@@ -198,8 +198,8 @@ const Layout = () => {
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 min-h-screen lg:pl-0">
-          <div className="h-full">
+        <main className="flex-1 h-screen overflow-y-auto lg:pl-0">
+          <div className="min-h-full">
             <Outlet />
           </div>
         </main>

@@ -59,10 +59,29 @@ interface SupplierExpense {
   updated_at: string;
 }
 
-interface Supplier {
-  id: string;
-  name: string;
+  interface Supplier {
+    id: number;
+    name: string;
+  }
+
+interface CashBoxReport {
+  id: number;
+  opened_at: string;
+  closed_at: string | null;
+  starting_amount: number;
+  final_amount: number | null;
+  reconciliation_data: any;
+  user_id: string;
 }
+
+const mapCashBoxToReport = (cashBox: any): CashBoxReport => ({
+  id: cashBox.id,
+  opened_at: cashBox.opened_at,
+  closed_at: cashBox.closed_at,
+  starting_amount: cashBox.starting_amount,
+  final_amount: cashBox.final_amount ?? null,
+  user_id: cashBox.opened_by,
+});
 
 const Financeiro = () => {
   const [loading, setLoading] = useState(false);
@@ -126,6 +145,9 @@ const Financeiro = () => {
     status: 'pending'
   });
 
+  // Cash Boxes Reports state
+  const [cashBoxesReports, setCashBoxesReports] = useState<CashBoxReport[]>([]);
+
   // Modal states
   const [fixedCostDialogOpen, setFixedCostDialogOpen] = useState(false);
   const [variableCostDialogOpen, setVariableCostDialogOpen] = useState(false);
@@ -150,7 +172,61 @@ const Financeiro = () => {
         loadCosts();
         loadSupplierExpenses();
         loadSuppliers();
+        loadCashBoxesReports();
       }, []);
+
+      const loadCashBoxesReports = async () => {
+        try {
+          const { data: cashBoxes, error } = await supabase
+            .from('cash_boxes')
+            .select('*')
+            .not('closed_at', 'is', null)
+            .order('opened_at', { ascending: false });
+
+          if (error) throw error;
+
+          const reports = await Promise.all((cashBoxes || []).map(async (cashBox) => {
+            // Calculate final amount from movements
+            const { data: movements, error: movementsError } = await supabase
+              .from('cash_movements')
+              .select('amount, type')
+              .gte('created_at', cashBox.opened_at)
+              .lte('created_at', cashBox.closed_at);
+
+            if (movementsError) {
+              console.warn('Error fetching movements for cash box:', cashBox.id, movementsError);
+            }
+
+            let finalAmount = cashBox.starting_amount;
+            (movements || []).forEach(movement => {
+              if (movement.type === 'entrada') {
+                finalAmount += movement.amount || 0;
+              } else if (movement.type === 'saida' || movement.type === 'expense') {
+                finalAmount -= movement.amount || 0;
+              }
+            });
+
+            return {
+              id: cashBox.id,
+              opened_at: cashBox.opened_at,
+              closed_at: cashBox.closed_at,
+              starting_amount: cashBox.starting_amount,
+              final_amount: finalAmount,
+              reconciliation_data: cashBox.reconciliation_data || null,
+              user_id: cashBox.opened_by,
+            };
+          }));
+
+          setCashBoxesReports(reports);
+        } catch (error) {
+          console.error('Error loading cash boxes reports:', error);
+          toast({
+            variant: "destructive",
+            title: "Erro ao carregar relatórios de caixas",
+            description: error instanceof Error ? error.message : 'Erro desconhecido',
+          });
+        }
+      };
 
       const loadSuppliers = async () => {
         try {
@@ -722,7 +798,7 @@ const Financeiro = () => {
       </div>
 
       <Tabs defaultValue="daily" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="daily" className="flex items-center gap-2">
             <Calendar className="w-4 h-4" />
             Análise Diária
@@ -742,6 +818,10 @@ const Financeiro = () => {
           <TabsTrigger value="supplier-expenses" className="flex items-center gap-2">
             <Building className="w-4 h-4" />
             Despesas Fornecedores
+          </TabsTrigger>
+          <TabsTrigger value="cash-boxes" className="flex items-center gap-2">
+            <BarChart3 className="w-4 h-4" />
+            Relatórios de Caixas
           </TabsTrigger>
         </TabsList>
 
@@ -1260,6 +1340,73 @@ const Financeiro = () => {
           </Card>
         </TabsContent>
 
+        {/* Relatórios de Caixas */}
+        <TabsContent value="cash-boxes" className="space-y-6">
+          <Card className="pdv-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="w-5 h-5" />
+                Relatórios de Caixas Abertos e Fechados
+              </CardTitle>
+              <CardDescription>
+                Histórico de todos os caixas que foram abertos e fechados no sistema.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Hora Abertura</TableHead>
+                    <TableHead>Hora Fechamento</TableHead>
+                    <TableHead>Saldo Inicial</TableHead>
+                    <TableHead>Saldo Esperado</TableHead>
+                    <TableHead>Total Real</TableHead>
+                    <TableHead>Diferença</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {cashBoxesReports.length > 0 ? (
+                    cashBoxesReports.map((report) => {
+                      const actualTotal = report.reconciliation_data
+                        ? Object.values(report.reconciliation_data).reduce((sum: number, amount: any) => sum + (parseFloat(amount) || 0), 0)
+                        : 0;
+                      const difference = report.final_amount ? actualTotal - report.final_amount : 0;
+                      const hasReconciliation = report.reconciliation_data && actualTotal > 0;
+
+                      return (
+                        <TableRow key={report.id}>
+                          <TableCell>{new Date(report.opened_at).toLocaleDateString('pt-BR')}</TableCell>
+                          <TableCell>{new Date(report.opened_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</TableCell>
+                          <TableCell>{report.closed_at ? new Date(report.closed_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'Aberto'}</TableCell>
+                          <TableCell>R$ {report.starting_amount.toFixed(2)}</TableCell>
+                          <TableCell>{report.final_amount ? `R$ ${report.final_amount.toFixed(2)}` : 'N/A'}</TableCell>
+                          <TableCell>
+                            {hasReconciliation ? `R$ ${actualTotal.toFixed(2)}` : 'N/A'}
+                          </TableCell>
+                          <TableCell>
+                            {hasReconciliation ? (
+                              <span className={difference >= 0 ? 'text-green-600' : 'text-red-600'}>
+                                {difference >= 0 ? '+' : ''}R$ {difference.toFixed(2)}
+                              </span>
+                            ) : 'N/A'}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center text-muted-foreground">
+                        Nenhum caixa fechado encontrado.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
       </Tabs>
 
       {/* Fixed Cost Dialog */}
@@ -1378,102 +1525,7 @@ const Financeiro = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Supplier Expense Dialog */}
-      <Dialog open={supplierExpenseDialogOpen} onOpenChange={setSupplierExpenseDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {editingSupplierExpense ? 'Editar Despesa de Fornecedor' : 'Adicionar Despesa de Fornecedor'}
-            </DialogTitle>
-            <DialogDescription>
-              {editingSupplierExpense ? 'Atualize as informações da despesa.' : 'Adicione uma nova despesa de fornecedor.'}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="supplier-expense-supplier">Fornecedor</Label>
-              <Select
-                value={supplierExpenseForm.supplier_id}
-                onValueChange={(value) => setSupplierExpenseForm(prev => ({ ...prev, supplier_id: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um fornecedor" />
-                </SelectTrigger>
-                <SelectContent>
-                  {suppliers.map((supplier) => (
-                    <SelectItem key={supplier.id} value={supplier.id.toString()}>
-                      {supplier.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="supplier-expense-description">Descrição</Label>
-              <Input
-                id="supplier-expense-description"
-                value={supplierExpenseForm.description}
-                onChange={(e) => setSupplierExpenseForm(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Descrição da despesa"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="supplier-expense-amount">Valor (R$)</Label>
-              <Input
-                id="supplier-expense-amount"
-                type="number"
-                step="0.01"
-                value={supplierExpenseForm.amount}
-                onChange={(e) => setSupplierExpenseForm(prev => ({ ...prev, amount: e.target.value }))}
-                placeholder="0,00"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="supplier-expense-issue-date">Data de Emissão</Label>
-              <Input
-                id="supplier-expense-issue-date"
-                type="date"
-                value={supplierExpenseForm.issue_date}
-                onChange={(e) => setSupplierExpenseForm(prev => ({ ...prev, issue_date: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="supplier-expense-due-date">Data de Vencimento</Label>
-              <Input
-                id="supplier-expense-due-date"
-                type="date"
-                value={supplierExpenseForm.due_date}
-                onChange={(e) => setSupplierExpenseForm(prev => ({ ...prev, due_date: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="supplier-expense-status">Status</Label>
-              <Select
-                value={supplierExpenseForm.status}
-                onValueChange={(value) => setSupplierExpenseForm(prev => ({ ...prev, status: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pending">Pendente</SelectItem>
-                  <SelectItem value="paid">Pago</SelectItem>
-                  <SelectItem value="overdue">Atrasado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSupplierExpenseDialogOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={saveSupplierExpense}>
-              <Save className="w-4 h-4 mr-2" />
-              Salvar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
     </div>
   );
 };
