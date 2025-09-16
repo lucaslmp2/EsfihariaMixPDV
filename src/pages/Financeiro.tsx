@@ -59,6 +59,11 @@ interface SupplierExpense {
   updated_at: string;
 }
 
+interface Supplier {
+  id: string;
+  name: string;
+}
+
 const Financeiro = () => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -108,6 +113,19 @@ const Financeiro = () => {
     loans: 0
   });
 
+  // Supplier Expense states
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [supplierExpenseDialogOpen, setSupplierExpenseDialogOpen] = useState(false);
+  const [editingSupplierExpense, setEditingSupplierExpense] = useState<SupplierExpense | null>(null);
+  const [supplierExpenseForm, setSupplierExpenseForm] = useState({
+    supplier_id: '',
+    description: '',
+    amount: '',
+    issue_date: '',
+    due_date: '',
+    status: 'pending'
+  });
+
   // Modal states
   const [fixedCostDialogOpen, setFixedCostDialogOpen] = useState(false);
   const [variableCostDialogOpen, setVariableCostDialogOpen] = useState(false);
@@ -131,7 +149,129 @@ const Financeiro = () => {
         loadFinancialData();
         loadCosts();
         loadSupplierExpenses();
+        loadSuppliers();
       }, []);
+
+      const loadSuppliers = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('suppliers')
+            .select('id, name')
+            .order('name', { ascending: true });
+
+          if (error) throw error;
+          setSuppliers(data || []);
+        } catch (error) {
+          console.error('Error loading suppliers:', error);
+          toast({
+            variant: "destructive",
+            title: "Erro ao carregar fornecedores",
+            description: error instanceof Error ? error.message : 'Erro desconhecido',
+          });
+        }
+      };
+
+      const openSupplierExpenseDialog = (expense?: SupplierExpense) => {
+        if (expense) {
+          setEditingSupplierExpense(expense);
+          setSupplierExpenseForm({
+            supplier_id: expense.supplier_id,
+            description: expense.description,
+            amount: expense.amount.toString(),
+            issue_date: expense.issue_date,
+            due_date: expense.due_date || '',
+            status: expense.status
+          });
+        } else {
+          setEditingSupplierExpense(null);
+          setSupplierExpenseForm({
+            supplier_id: '',
+            description: '',
+            amount: '',
+            issue_date: new Date().toISOString().split('T')[0],
+            due_date: '',
+            status: 'pending'
+          });
+        }
+        setSupplierExpenseDialogOpen(true);
+      };
+
+      const saveSupplierExpense = async () => {
+        try {
+          const baseData = {
+            supplier_id: supplierExpenseForm.supplier_id,
+            description: supplierExpenseForm.description,
+            amount: parseFloat(supplierExpenseForm.amount),
+            issue_date: supplierExpenseForm.issue_date,
+            due_date: supplierExpenseForm.due_date || null,
+            status: supplierExpenseForm.status
+          };
+
+          if (editingSupplierExpense) {
+            const expenseData = {
+              ...baseData,
+              updated_at: new Date().toISOString()
+            };
+            const { error } = await supabase
+              .from('supplier_expenses')
+              .update(expenseData)
+              .eq('id', editingSupplierExpense.id);
+            if (error) throw error;
+            toast({
+              title: "Despesa atualizada",
+              description: "A despesa do fornecedor foi atualizada com sucesso.",
+            });
+          } else {
+            const expenseData = {
+              ...baseData,
+              user_id: (await supabase.auth.getUser()).data.user?.id
+            };
+            const { error } = await supabase
+              .from('supplier_expenses')
+              .insert([expenseData]);
+            if (error) throw error;
+            toast({
+              title: "Despesa adicionada",
+              description: "A despesa do fornecedor foi adicionada com sucesso.",
+            });
+          }
+
+          setSupplierExpenseDialogOpen(false);
+          loadSupplierExpenses();
+        } catch (error) {
+          console.error('Error saving supplier expense:', error);
+          toast({
+            variant: "destructive",
+            title: "Erro ao salvar despesa",
+            description: error instanceof Error ? error.message : 'Erro desconhecido',
+          });
+        }
+      };
+
+      const deleteSupplierExpense = async (id: string) => {
+        if (!confirm('Tem certeza que deseja apagar esta despesa?')) {
+          return;
+        }
+        try {
+          const { error } = await supabase
+            .from('supplier_expenses')
+            .delete()
+            .eq('id', id);
+          if (error) throw error;
+          toast({
+            title: "Despesa removida",
+            description: "A despesa do fornecedor foi removida com sucesso.",
+          });
+          loadSupplierExpenses();
+        } catch (error) {
+          console.error('Error deleting supplier expense:', error);
+          toast({
+            variant: "destructive",
+            title: "Erro ao remover despesa",
+            description: error instanceof Error ? error.message : 'Erro desconhecido',
+          });
+        }
+      };
 
       const loadFinancialData = async () => {
         setLoading(true);
@@ -1088,7 +1228,22 @@ const Financeiro = () => {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {/* Actions (Edit/Delete) will go here */}
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openSupplierExpenseDialog(expense)}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => deleteSupplierExpense(expense.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
@@ -1216,6 +1371,103 @@ const Financeiro = () => {
               Cancelar
             </Button>
             <Button onClick={saveVariableCost}>
+              <Save className="w-4 h-4 mr-2" />
+              Salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Supplier Expense Dialog */}
+      <Dialog open={supplierExpenseDialogOpen} onOpenChange={setSupplierExpenseDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingSupplierExpense ? 'Editar Despesa de Fornecedor' : 'Adicionar Despesa de Fornecedor'}
+            </DialogTitle>
+            <DialogDescription>
+              {editingSupplierExpense ? 'Atualize as informações da despesa.' : 'Adicione uma nova despesa de fornecedor.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="supplier-expense-supplier">Fornecedor</Label>
+              <Select
+                value={supplierExpenseForm.supplier_id}
+                onValueChange={(value) => setSupplierExpenseForm(prev => ({ ...prev, supplier_id: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um fornecedor" />
+                </SelectTrigger>
+                <SelectContent>
+                  {suppliers.map((supplier) => (
+                    <SelectItem key={supplier.id} value={supplier.id.toString()}>
+                      {supplier.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="supplier-expense-description">Descrição</Label>
+              <Input
+                id="supplier-expense-description"
+                value={supplierExpenseForm.description}
+                onChange={(e) => setSupplierExpenseForm(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Descrição da despesa"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="supplier-expense-amount">Valor (R$)</Label>
+              <Input
+                id="supplier-expense-amount"
+                type="number"
+                step="0.01"
+                value={supplierExpenseForm.amount}
+                onChange={(e) => setSupplierExpenseForm(prev => ({ ...prev, amount: e.target.value }))}
+                placeholder="0,00"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="supplier-expense-issue-date">Data de Emissão</Label>
+              <Input
+                id="supplier-expense-issue-date"
+                type="date"
+                value={supplierExpenseForm.issue_date}
+                onChange={(e) => setSupplierExpenseForm(prev => ({ ...prev, issue_date: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="supplier-expense-due-date">Data de Vencimento</Label>
+              <Input
+                id="supplier-expense-due-date"
+                type="date"
+                value={supplierExpenseForm.due_date}
+                onChange={(e) => setSupplierExpenseForm(prev => ({ ...prev, due_date: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="supplier-expense-status">Status</Label>
+              <Select
+                value={supplierExpenseForm.status}
+                onValueChange={(value) => setSupplierExpenseForm(prev => ({ ...prev, status: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pendente</SelectItem>
+                  <SelectItem value="paid">Pago</SelectItem>
+                  <SelectItem value="overdue">Atrasado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSupplierExpenseDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={saveSupplierExpense}>
               <Save className="w-4 h-4 mr-2" />
               Salvar
             </Button>
