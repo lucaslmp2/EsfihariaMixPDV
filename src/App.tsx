@@ -11,6 +11,8 @@ import Pedidos from "./pages/Pedidos";
 import Caixa from "./pages/Caixa";
 import Clientes from "./pages/Clientes";
 import Financeiro from "./pages/Financeiro";
+import Fornecedores from "./pages/Fornecedores";
+import AddSupplierExpense from "./pages/AddSupplierExpense";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -48,6 +50,14 @@ const router = createBrowserRouter([
       {
         path: "financeiro",
         element: <Financeiro />,
+      },
+      {
+        path: "fornecedores",
+        element: <Fornecedores />,
+      },
+      {
+        path: "fornecedores/adicionar-despesa",
+        element: <AddSupplierExpense />,
       },
     ],
   },

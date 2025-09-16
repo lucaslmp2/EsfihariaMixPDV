@@ -22,7 +22,8 @@ import {
   LineChart,
   Save,
   X,
-  Trash2
+  Trash2,
+  Building
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -44,6 +45,20 @@ interface VariableCost {
   updated_at: string;
 }
 
+interface SupplierExpense {
+  id: string;
+  supplier_id: string;
+  suppliers: { name: string }; // For joining supplier name
+  description: string;
+  amount: number;
+  issue_date: string;
+  due_date: string;
+  payment_date: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
 const Financeiro = () => {
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -58,6 +73,7 @@ const Financeiro = () => {
 
   const [fixedCosts, setFixedCosts] = useState<FixedCost[]>([]);
   const [variableCosts, setVariableCosts] = useState<VariableCost[]>([]);
+  const [supplierExpenses, setSupplierExpenses] = useState<SupplierExpense[]>([]);
 
   const [budgetGoals, setBudgetGoals] = useState({
     monthlyRevenue: 0.00,
@@ -114,6 +130,7 @@ const Financeiro = () => {
       useEffect(() => {
         loadFinancialData();
         loadCosts();
+        loadSupplierExpenses();
       }, []);
 
       const loadFinancialData = async () => {
@@ -228,7 +245,16 @@ const Financeiro = () => {
 
           const { data: unpaidEntries, error: entriesError } = await supabase.from('financial_entries').select('amount').eq('paid', false);
           if (entriesError) console.warn('Error fetching financial entries:', entriesError);
-          const supplierDebt = (unpaidEntries || []).reduce((sum, e) => sum + e.amount, 0);
+          const supplierDebtFromEntries = (unpaidEntries || []).reduce((sum, e) => sum + e.amount, 0);
+
+          const { data: unpaidSupplierExpenses, error: supplierExpensesError } = await supabase
+            .from('supplier_expenses')
+            .select('amount')
+            .neq('status', 'paid');
+          if (supplierExpensesError) console.warn('Error fetching supplier expenses:', supplierExpensesError);
+          const supplierDebtFromExpenses = (unpaidSupplierExpenses || []).reduce((sum, e) => sum + e.amount, 0);
+
+          const supplierDebt = supplierDebtFromEntries + supplierDebtFromExpenses;
 
           const assetsTotal = (cashBox?.starting_amount || 0) + inventoryValue + equipmentValue;
           const liabilitiesTotal = supplierDebt + loansValue;
@@ -301,6 +327,28 @@ const Financeiro = () => {
           toast({
             variant: "destructive",
             title: "Erro ao carregar custos",
+            description: error instanceof Error ? error.message : 'Erro desconhecido',
+          });
+        }
+      };
+
+      const loadSupplierExpenses = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('supplier_expenses')
+            .select(`
+              *,
+              suppliers (name)
+            `)
+            .order('issue_date', { ascending: false });
+
+          if (error) throw error;
+          setSupplierExpenses(data || []);
+        } catch (error) {
+          console.error('Error loading supplier expenses:', error);
+          toast({
+            variant: "destructive",
+            title: "Erro ao carregar despesas de fornecedores",
             description: error instanceof Error ? error.message : 'Erro desconhecido',
           });
         }
@@ -534,7 +582,7 @@ const Financeiro = () => {
       </div>
 
       <Tabs defaultValue="daily" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="daily" className="flex items-center gap-2">
             <Calendar className="w-4 h-4" />
             Análise Diária
@@ -550,6 +598,10 @@ const Financeiro = () => {
           <TabsTrigger value="reports" className="flex items-center gap-2">
             <FileText className="w-4 h-4" />
             Relatórios
+          </TabsTrigger>
+          <TabsTrigger value="supplier-expenses" className="flex items-center gap-2">
+            <Building className="w-4 h-4" />
+            Despesas Fornecedores
           </TabsTrigger>
         </TabsList>
 
@@ -993,6 +1045,66 @@ const Financeiro = () => {
             </Card>
           </div>
         </TabsContent>
+
+        {/* Despesas Fornecedores */}
+        <TabsContent value="supplier-expenses" className="space-y-6">
+          <Card className="pdv-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Building className="w-5 h-5" />
+                Despesas com Fornecedores
+              </CardTitle>
+              <CardDescription>
+                Visualize e gerencie as despesas registradas com seus fornecedores.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Fornecedor</TableHead>
+                    <TableHead>Descrição</TableHead>
+                    <TableHead>Valor</TableHead>
+                    <TableHead>Emissão</TableHead>
+                    <TableHead>Vencimento</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {supplierExpenses.length > 0 ? (
+                    supplierExpenses.map((expense) => (
+                      <TableRow key={expense.id}>
+                        <TableCell className="font-medium">{expense.suppliers?.name || 'N/A'}</TableCell>
+                        <TableCell>{expense.description}</TableCell>
+                        <TableCell>R$ {expense.amount.toFixed(2)}</TableCell>
+                        <TableCell>{new Date(expense.issue_date).toLocaleDateString('pt-BR')}</TableCell>
+                        <TableCell>{expense.due_date ? new Date(expense.due_date).toLocaleDateString('pt-BR') : 'N/A'}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={expense.status === 'paid' ? 'default' : expense.status === 'pending' ? 'secondary' : 'destructive'}
+                          >
+                            {expense.status === 'pending' ? 'Pendente' : expense.status === 'paid' ? 'Pago' : 'Atrasado'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {/* Actions (Edit/Delete) will go here */}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center text-muted-foreground">
+                        Nenhuma despesa com fornecedor encontrada.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
       </Tabs>
 
       {/* Fixed Cost Dialog */}

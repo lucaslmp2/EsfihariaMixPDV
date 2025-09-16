@@ -417,6 +417,108 @@ export type Database = {
         }
         Relationships: []
       }
+      supplier_expenses: {
+        Row: {
+          id: string
+          user_id: string
+          supplier_id: string
+          description: string
+          amount: number
+          issue_date: string
+          due_date: string | null
+          payment_date: string | null
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          supplier_id: string
+          description: string
+          amount: number
+          issue_date?: string
+          due_date?: string | null
+          payment_date?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          supplier_id?: string
+          description?: string
+          amount?: number
+          issue_date?: string
+          due_date?: string | null
+          payment_date?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_expenses_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_expenses_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_goals: {
+        Row: {
+          id: string
+          monthly_revenue: number
+          monthly_expenses: number
+          profit_margin: number
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          monthly_revenue: number
+          monthly_expenses: number
+          profit_margin: number
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          monthly_revenue?: number
+          monthly_expenses?: number
+          profit_margin?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      balance_sheet_manual_entries: {
+        Row: {
+          id: string
+          equipment: number
+          loans: number
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          equipment: number
+          loans: number
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          equipment?: number
+          loans?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
