@@ -490,7 +490,9 @@ const Caixa = () => {
   return (
     <div className="p-6 space-y-6">
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="no-print">{renderDialogContent()}</DialogContent>
+        <DialogContent className="no-print max-h-[90vh] overflow-y-auto">
+          {renderDialogContent()}
+        </DialogContent>
       </Dialog>
 
       {!currentCaixa ? (
@@ -521,7 +523,7 @@ const Caixa = () => {
                 } por {user?.email}
               </p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline"
                 onClick={() => {
@@ -632,9 +634,9 @@ const Caixa = () => {
               </Table>
             </CardContent>
           </Card>
-          
+
           {/* Actions */}
-          <div className="flex justify-end gap-2 mt-6 no-print">
+          <div className="flex flex-wrap justify-end gap-2 mt-6 no-print">
             <Button variant="outline" onClick={handlePrint}>
               <Printer className="mr-2 h-4 w-4" /> Imprimir Histórico
             </Button>

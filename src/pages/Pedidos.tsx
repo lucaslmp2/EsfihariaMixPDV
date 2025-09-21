@@ -115,6 +115,17 @@ const Pedidos = () => {
 
   const [amountReceived, setAmountReceived] = useState("");
 
+  const [selectedCustomerForCredit, setSelectedCustomerForCredit] = useState<any>(null);
+  const [customerCreditDialogOpen, setCustomerCreditDialogOpen] = useState(false);
+
+  const openCustomerCreditDialog = () => {
+    setCustomerCreditDialogOpen(true);
+  };
+
+  const closeCustomerCreditDialog = () => {
+    setCustomerCreditDialogOpen(false);
+  };
+
   const [isCashRegisterOpen, setIsCashRegisterOpen] = useState<boolean | null>(null);
 
   const { toast } = useToast();
@@ -429,6 +440,60 @@ const Pedidos = () => {
     setIsSaving(true);
 
     try {
+      if (paymentMethod === "fiado") {
+        if (!selectedCustomerForCredit) {
+          toast({
+            variant: "destructive",
+            title: "Cliente não selecionado",
+            description: "Por favor, selecione um cliente para pagamento fiado.",
+          });
+          setIsSaving(false);
+          return;
+        }
+
+        // Update customer's credit_balance by adding order total
+        const { data: customerData, error: customerError } = await supabase
+          .from("customers")
+          .select("credit_balance")
+          .eq("id", selectedCustomerForCredit.id)
+          .single();
+
+        if (customerError) throw customerError;
+
+        const newCreditBalance = (customerData.credit_balance || 0) + (payingOrder.total || 0);
+
+        const { error: updateError } = await supabase
+          .from("customers")
+          .update({ credit_balance: newCreditBalance })
+          .eq("id", selectedCustomerForCredit.id);
+
+        if (updateError) throw updateError;
+
+        // Update order with customer_id, status "pago", payment_method "fiado"
+        const { error: orderUpdateError } = await supabase
+          .from("orders")
+          .update({
+            status: "pago",
+            payment_method: "fiado",
+            customer_id: selectedCustomerForCredit.id,
+          })
+          .eq("id", payingOrder.id);
+
+        if (orderUpdateError) throw orderUpdateError;
+
+        toast({
+          title: "Pagamento fiado registrado",
+          description: `Cliente ${selectedCustomerForCredit.name} teve crédito atualizado.`,
+        });
+
+        setPaymentDialogOpen(false);
+        setPayingOrder(null);
+        setSelectedCustomerForCredit(null);
+        loadOrders();
+        setIsSaving(false);
+        return;
+      }
+
       const { data: cashBox, error: cashBoxError } = await supabase
         .from("cash_boxes")
         .select("id")
@@ -805,7 +870,8 @@ const Pedidos = () => {
                         {order.payment_method === 'dinheiro' ? 'Dinheiro' :
                          order.payment_method === 'cartao_credito' ? 'Cartão Crédito' :
                          order.payment_method === 'cartao_debito' ? 'Cartão Débito' :
-                         order.payment_method === 'pix' ? 'PIX' : 'Pago'}
+                         order.payment_method === 'pix' ? 'PIX' :
+                         order.payment_method === 'fiado' ? 'Fiado' : 'Pago'}
                       </>
                     ) : (
                       <>
@@ -928,7 +994,12 @@ const Pedidos = () => {
           <div className="space-y-4">
             <div>
               <Label>Forma de Pagamento</Label>
-              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+              <Select value={paymentMethod} onValueChange={(value) => {
+                setPaymentMethod(value);
+                if (value === "fiado") {
+                  setCustomerCreditDialogOpen(true);
+                }
+              }}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -941,6 +1012,7 @@ const Pedidos = () => {
                     Cartão de Débito
                   </SelectItem>
                   <SelectItem value="pix">PIX</SelectItem>
+                  <SelectItem value="fiado">Fiado</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -974,6 +1046,48 @@ const Pedidos = () => {
               {isSaving ? "Finalizando..." : "Finalizar Pagamento"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={customerCreditDialogOpen} onOpenChange={setCustomerCreditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Selecionar Cliente para Fiado</DialogTitle>
+            <DialogDescription>
+              Escolha um cliente para associar o pagamento fiado.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {customers.map((customer) => (
+              <div
+                key={customer.id}
+                className={`p-2 border rounded cursor-pointer ${
+                  selectedCustomerForCredit?.id === customer.id ? "bg-blue-200" : ""
+                }`}
+                onClick={() => setSelectedCustomerForCredit(customer)}
+              >
+                {customer.name} - Débito: R$ {customer.credit_balance?.toFixed(2) || "0.00"}
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSelectedCustomerForCredit(null);
+                setCustomerCreditDialogOpen(false);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              disabled={!selectedCustomerForCredit}
+              onClick={() => setCustomerCreditDialogOpen(false)}
+              className="pdv-button-primary"
+            >
+              Confirmar
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -24,13 +24,50 @@ import {
   MapPin,
   Edit,
   Trash2,
+  CreditCard,
 } from "lucide-react";
 
+type Customer = {
+  id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  notes: string | null;
+  credit_balance?: number | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+type OrderItem = {
+  quantity: number | null;
+  unit_price: number | null;
+  total_price: number | null;
+};
+
+type Order = {
+  id: number;
+  order_number?: number;
+  created_at: string | null;
+  customer_name: string | null;
+  customer_phone: string | null;
+  customer_id: string | null;
+  notes: string | null;
+  status: string | null;
+  table_number: string | null;
+  total: number | null;
+  type: string;
+  payment_method: string | null;
+  updated_at: string | null;
+  user_id: string | null;
+  order_items?: OrderItem[];
+};
+
 const Clientes = () => {
-  const [customers, setCustomers] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
-  const [editingCustomer, setEditingCustomer] = useState<any>(null);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     phone: "",
@@ -39,6 +76,10 @@ const Clientes = () => {
     notes: "",
   });
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedCustomerForCredit, setSelectedCustomerForCredit] = useState<Customer | null>(null);
+  const [creditOrders, setCreditOrders] = useState<Order[]>([]);
+  const [creditDialogOpen, setCreditDialogOpen] = useState(false);
+  const [loadingCredit, setLoadingCredit] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -54,11 +95,12 @@ const Clientes = () => {
 
       if (error) throw error;
       setCustomers(data || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as Error;
       toast({
         variant: "destructive",
         title: "Erro ao carregar clientes",
-        description: error.message,
+        description: err.message,
       });
     } finally {
       setLoading(false);
@@ -94,18 +136,19 @@ const Clientes = () => {
       setDialogOpen(false);
       resetForm();
       loadCustomers();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as Error;
       toast({
         variant: "destructive",
         title: "Erro ao salvar cliente",
-        description: error.message,
+        description: err.message,
       });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleEdit = (customer: any) => {
+  const handleEdit = (customer: Customer) => {
     setEditingCustomer(customer);
     setFormData({
       name: customer.name,
@@ -117,7 +160,7 @@ const Clientes = () => {
     setDialogOpen(true);
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     if (!confirm("Tem certeza que deseja excluir este cliente?")) return;
 
     try {
@@ -134,11 +177,12 @@ const Clientes = () => {
       });
 
       loadCustomers();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as Error;
       toast({
         variant: "destructive",
         title: "Erro ao excluir cliente",
-        description: error.message,
+        description: err.message,
       });
     }
   };
@@ -152,6 +196,52 @@ const Clientes = () => {
       notes: "",
     });
     setEditingCustomer(null);
+  };
+
+  const loadCreditOrders = async (customerId: string) => {
+    setLoadingCredit(true);
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items (
+            quantity,
+            products (
+              price
+            )
+          )
+        `)
+        .eq('customer_id', customerId)
+        .eq('payment_method', 'fiado')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const ordersWithTotal = (data || []).map((order) => ({
+        ...order,
+        total: order.order_items?.reduce((sum: number, item: { quantity: number | null; products: { price: number } | null }) =>
+          sum + ((item.quantity || 0) * (item.products?.price || 0)), 0
+        ) || order.total || 0
+      }));
+
+      setCreditOrders(ordersWithTotal);
+    } catch (error: unknown) {
+      const err = error as Error;
+      toast({
+        variant: "destructive",
+        title: "Erro ao carregar pedidos fiados",
+        description: err.message,
+      });
+    } finally {
+      setLoadingCredit(false);
+    }
+  };
+
+  const handleViewCredit = (customer: Customer) => {
+    setSelectedCustomerForCredit(customer);
+    setCreditDialogOpen(true);
+    loadCreditOrders(customer.id);
   };
 
   const filteredCustomers = customers.filter(customer => {
@@ -354,7 +444,16 @@ const Clientes = () => {
                   )}
                 </div>
 
-                <div className="flex gap-2 mt-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex flex-wrap gap-2 mt-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleViewCredit(customer)}
+                    className="flex-1"
+                  >
+                    <CreditCard className="w-4 h-4 mr-1" />
+                    Ver Fiados
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -396,6 +495,77 @@ const Clientes = () => {
           )}
         </div>
       )}
+
+      {/* Credit Orders Modal */}
+      <Dialog open={creditDialogOpen} onOpenChange={setCreditDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>
+              Pedidos Fiados - {selectedCustomerForCredit?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Histórico de compras fiadas do cliente
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {loadingCredit ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                <p className="text-sm text-muted-foreground mt-2">Carregando pedidos...</p>
+              </div>
+            ) : creditOrders.length > 0 ? (
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {creditOrders.map((order) => (
+                  <Card key={order.id} className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <CreditCard className="w-4 h-4 text-muted-foreground" />
+                          <span className="font-medium">Pedido #{order.order_number || order.id}</span>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(order.created_at || "").toLocaleDateString('pt-BR', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold text-lg">
+                          R$ {order.total?.toFixed(2) || '0.00'}
+                        </p>
+                        <Badge variant="outline" className="text-xs">
+                          Fiado
+                        </Badge>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <CreditCard className="w-16 h-16 text-muted-foreground/50 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-foreground mb-2">
+                  Nenhum pedido fiado encontrado
+                </h3>
+                <p className="text-muted-foreground">
+                  Este cliente ainda não fez compras fiadas
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end pt-4">
+            <Button onClick={() => setCreditDialogOpen(false)}>
+              Fechar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

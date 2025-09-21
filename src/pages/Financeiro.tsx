@@ -406,9 +406,20 @@ const Financeiro = () => {
             .filter(order => order.status?.toLowerCase() === 'pago' || order.status?.toLowerCase() === 'finalizado')
             .reduce((sum, order) => sum + (order.total || 0), 0);
 
-          const { data: fixed, error: fixedError } = await supabase.from('fixed_costs').select('amount');
+          const { data: fixed, error: fixedError } = await supabase.from('fixed_costs').select('amount, frequency');
           if (fixedError) throw fixedError;
-          const operatingExpenses = (fixed || []).reduce((sum, cost) => sum + cost.amount, 0);
+          const operatingExpenses = (fixed || []).reduce((sum, cost) => {
+            if (cost.frequency === 'Semanal') {
+              // Calculate weeks remaining in the month
+              const today = new Date();
+              const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+              const daysRemaining = (lastDayOfMonth.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
+              const weeksRemaining = Math.ceil(daysRemaining / 7);
+              return sum + cost.amount * weeksRemaining;
+            } else {
+              return sum + cost.amount;
+            }
+          }, 0);
 
           const { data: variable, error: variableError } = await supabase.from('variable_costs').select('amount').gte('date', lastMonthISO);
           if (variableError) throw variableError;
@@ -960,9 +971,20 @@ const Financeiro = () => {
                 <div className="mt-4 pt-4 border-t">
                   <div className="flex justify-between items-center">
                     <span className="font-semibold">Total Mensal:</span>
-                    <span className="font-bold text-lg">
-                      R$ {fixedCosts.reduce((sum, cost) => sum + cost.amount, 0).toFixed(2)}
-                    </span>
+                <span className="font-bold text-lg">
+                  R$ {fixedCosts.reduce((sum, cost) => {
+                    if (cost.frequency === 'Semanal') {
+                      // Calculate weeks remaining in the month
+                      const today = new Date();
+                      const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                      const daysRemaining = (lastDayOfMonth.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
+                      const weeksRemaining = Math.ceil(daysRemaining / 7);
+                      return sum + cost.amount * weeksRemaining;
+                    } else {
+                      return sum + cost.amount;
+                    }
+                  }, 0).toFixed(2)}
+                </span>
                   </div>
                 </div>
               </CardContent>

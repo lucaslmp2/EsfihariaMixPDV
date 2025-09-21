@@ -164,7 +164,7 @@ export type Database = {
           id: number
           order_id: number | null
           product_id: number | null
-          qty: number | null
+          quantity: number | null
           total_price: number | null
           unit_price: number | null
         }
@@ -172,7 +172,7 @@ export type Database = {
           id?: number
           order_id?: number | null
           product_id?: number | null
-          qty?: number | null
+          quantity?: number | null
           total_price?: number | null
           unit_price?: number | null
         }
@@ -180,7 +180,7 @@ export type Database = {
           id?: number
           order_id?: number | null
           product_id?: number | null
-          qty?: number | null
+          quantity?: number | null
           total_price?: number | null
           unit_price?: number | null
         }
@@ -206,12 +206,14 @@ export type Database = {
           created_at: string | null
           customer_name: string | null
           customer_phone: string | null
+          customer_id: string | null
           id: number
           notes: string | null
           status: string | null
           table_number: string | null
           total: number | null
           type: string
+          payment_method: string | null
           updated_at: string | null
           user_id: string | null
         }
@@ -219,12 +221,14 @@ export type Database = {
           created_at?: string | null
           customer_name?: string | null
           customer_phone?: string | null
+          customer_id?: string | null
           id?: number
           notes?: string | null
           status?: string | null
           table_number?: string | null
           total?: number | null
           type: string
+          payment_method?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
@@ -232,12 +236,14 @@ export type Database = {
           created_at?: string | null
           customer_name?: string | null
           customer_phone?: string | null
+          customer_id?: string | null
           id?: number
           notes?: string | null
           status?: string | null
           table_number?: string | null
           total?: number | null
           type?: string
+          payment_method?: string | null
           updated_at?: string | null
           user_id?: string | null
         }
@@ -247,6 +253,13 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
             referencedColumns: ["id"]
           },
         ]
@@ -515,6 +528,42 @@ export type Database = {
           id?: string
           equipment?: number
           loans?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      customers: {
+        Row: {
+          id: string
+          name: string
+          phone: string | null
+          email: string | null
+          address: string | null
+          notes: string | null
+          credit_balance: number | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          phone?: string | null
+          email?: string | null
+          address?: string | null
+          notes?: string | null
+          credit_balance?: number | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          phone?: string | null
+          email?: string | null
+          address?: string | null
+          notes?: string | null
+          credit_balance?: number | null
+          created_at?: string | null
           updated_at?: string | null
         }
         Relationships: []
