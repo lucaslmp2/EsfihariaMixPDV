@@ -86,7 +86,7 @@ const Auth = () => {
           <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-primary rounded-xl shadow-glow mb-4">
             <ChefHat className="w-8 h-8 text-primary-foreground" />
           </div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Esfiharia PDV</h1>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Esfiharia Mix</h1>
           <p className="text-muted-foreground">Sistema de ponto de venda</p>
         </div>
 
