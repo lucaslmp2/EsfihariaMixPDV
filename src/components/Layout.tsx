@@ -105,7 +105,7 @@ const Layout = () => {
       <div className="lg:hidden flex items-center justify-between p-4 bg-card border-b border-border">
         <div className="flex items-center gap-2">
           <ChefHat className="w-8 h-8 text-primary" />
-          <span className="font-bold text-foreground">Esfiharia PDV</span>
+          <span className="font-bold text-foreground">Esfiharia Mix</span>
         </div>
         <Button
           variant="ghost"
@@ -131,8 +131,8 @@ const Layout = () => {
                 <ChefHat className="w-6 h-6 text-primary-foreground" />
               </div>
               <div>
-                <h1 className="font-bold text-foreground">Esfiharia</h1>
-                <p className="text-sm text-muted-foreground">PDV System</p>
+                <h1 className="font-bold text-foreground">Esfiharia Mix</h1>
+                <p className="text-sm text-muted-foreground">Sistema</p>
               </div>
             </div>
 

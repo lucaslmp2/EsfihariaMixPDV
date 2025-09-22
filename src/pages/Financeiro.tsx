@@ -223,7 +223,7 @@ const Financeiro = () => {
           toast({
             variant: "destructive",
             title: "Erro ao carregar relatórios de caixas",
-            description: error instanceof Error ? error.message : 'Erro desconhecido',
+            description: (error as any)?.message ?? 'Erro desconhecido',
           });
         }
       };
@@ -242,7 +242,7 @@ const Financeiro = () => {
           toast({
             variant: "destructive",
             title: "Erro ao carregar fornecedores",
-            description: error instanceof Error ? error.message : 'Erro desconhecido',
+            description: (error as any)?.message ?? 'Erro desconhecido',
           });
         }
       };
@@ -319,7 +319,7 @@ const Financeiro = () => {
           toast({
             variant: "destructive",
             title: "Erro ao salvar despesa",
-            description: error instanceof Error ? error.message : 'Erro desconhecido',
+            description: (error as any)?.message ?? 'Erro desconhecido',
           });
         }
       };
@@ -344,7 +344,7 @@ const Financeiro = () => {
           toast({
             variant: "destructive",
             title: "Erro ao remover despesa",
-            description: error instanceof Error ? error.message : 'Erro desconhecido',
+            description: (error as any)?.message ?? 'Erro desconhecido',
           });
         }
       };
@@ -436,7 +436,7 @@ const Financeiro = () => {
           const { data: manualEntries, error: manualEntriesError } = await supabase
             .from('balance_sheet_manual_entries')
             .select('*')
-            .eq('id', '9b9e4e3c-9e9e-4e3c-9e9e-4e3c9e9e4e3c');
+            .eq('id', 'b1c2d3e4-f5f6-7890-1234-567890abcdef');
 
           if (manualEntriesError) throw manualEntriesError;
 
@@ -454,7 +454,7 @@ const Financeiro = () => {
             const { data: newEntry, error: insertError } = await supabase
               .from('balance_sheet_manual_entries')
               .insert([{
-                id: '9b9e4e3c-9e9e-4e3c-9e9e-4e3c9e9e4e3c',
+                id: 'b1c2d3e4-f5f6-7890-1234-567890abcdef',
                 equipment: 8000.00,
                 loans: 3000.00
               }]).select();
@@ -505,7 +505,7 @@ const Financeiro = () => {
           const { data: goals, error: goalsError } = await supabase
             .from('budget_goals')
             .select('*')
-            .eq('id', '8a8e4e3c-8e8e-4e3c-8e8e-4e3c8e8e4e3c');
+            .eq('id', 'a1b2c3d4-e5f6-7890-1234-567890abcdef');
 
           if (goalsError) throw goalsError;
 
@@ -519,7 +519,7 @@ const Financeiro = () => {
             const { error: insertError } = await supabase
               .from('budget_goals')
               .insert([{
-                id: '8a8e4e3c-8e8e-4e3c-8e8e-4e3c8e8e4e3c',
+                id: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
                 monthly_revenue: 15000.00,
                 monthly_expenses: 8000.00,
                 profit_margin: 0.30
@@ -532,7 +532,7 @@ const Financeiro = () => {
           toast({
             variant: "destructive",
             title: "Erro ao carregar dados financeiros",
-            description: error instanceof Error ? error.message : 'Erro desconhecido',
+            description: (error as any)?.message ?? 'Erro desconhecido',
           });
         } finally {
           setLoading(false);
@@ -554,7 +554,7 @@ const Financeiro = () => {
           toast({
             variant: "destructive",
             title: "Erro ao carregar custos",
-            description: error instanceof Error ? error.message : 'Erro desconhecido',
+            description: (error as any)?.message ?? 'Erro desconhecido',
           });
         }
       };
@@ -576,7 +576,7 @@ const Financeiro = () => {
           toast({
             variant: "destructive",
             title: "Erro ao carregar despesas de fornecedores",
-            description: error instanceof Error ? error.message : 'Erro desconhecido',
+            description: (error as any)?.message ?? 'Erro desconhecido',
           });
         }
       };
@@ -591,7 +591,7 @@ const Financeiro = () => {
           profit_margin: budgetGoals.profitMargin,
           updated_at: new Date().toISOString()
         })
-        .eq('id', '8a8e4e3c-8e8e-4e3c-8e8e-4e3c8e8e4e3c');
+        .eq('id', 'a1b2c3d4-e5f6-7890-1234-567890abcdef');
 
       if (error) {
         console.error('Error updating budget goals:', error);
@@ -607,7 +607,7 @@ const Financeiro = () => {
       toast({
         variant: "destructive",
         title: "Erro ao atualizar metas",
-        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        description: (error as any)?.message ?? 'Erro desconhecido',
       });
     }
   };
@@ -621,7 +621,7 @@ const Financeiro = () => {
           loans: manualBalanceEntries.loans,
           updated_at: new Date().toISOString()
         })
-        .eq('id', '9b9e4e3c-9e9e-4e3c-9e9e-4e3c9e9e4e3c');
+        .eq('id', 'b1c2d3e4-f5f6-7890-1234-567890abcdef');
 
       if (error) {
         console.error('Error updating balance sheet:', error);
@@ -637,7 +637,7 @@ const Financeiro = () => {
       toast({
         variant: "destructive",
         title: "Erro ao atualizar balanço",
-        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        description: (error as any)?.message ?? 'Erro desconhecido',
       });
     }
   };
@@ -711,7 +711,7 @@ const Financeiro = () => {
       toast({
         variant: "destructive",
         title: "Erro ao salvar custo fixo",
-        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        description: (error as any)?.message ?? 'Erro desconhecido',
       });
     }
   };
@@ -747,7 +747,7 @@ const Financeiro = () => {
       toast({
         variant: "destructive",
         title: "Erro ao salvar custo variável",
-        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        description: (error as any)?.message ?? 'Erro desconhecido',
       });
     }
   };
@@ -766,7 +766,7 @@ const Financeiro = () => {
       toast({
         variant: "destructive",
         title: "Erro ao remover custo fixo",
-        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        description: (error as any)?.message ?? 'Erro desconhecido',
       });
     }
   };
@@ -785,7 +785,7 @@ const Financeiro = () => {
       toast({
         variant: "destructive",
         title: "Erro ao remover custo variável",
-        description: error instanceof Error ? error.message : 'Erro desconhecido',
+        description: (error as any)?.message ?? 'Erro desconhecido',
       });
     }
   };
